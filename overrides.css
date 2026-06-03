@@ -1,0 +1,20 @@
+.invoice-file-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.invoice-remove {
+  border: 1px solid #ffd5cf;
+  background: #fff4f2;
+  color: #b42318;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+td textarea {
+  min-height: 52px;
+  max-height: 90px;
+  overflow: auto;
+}
