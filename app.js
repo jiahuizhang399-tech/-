@@ -575,11 +575,17 @@ function applyTemplateSheetStyle(ws) {
 async function exportScreenshotsDoc() {
   const rows = sortedItems().filter((item) => item.imageUrl);
   if (!rows.length) return setStatus("没有可导出的截图。");
-  const blocks = await Promise.all(rows.map(async (item, index) => {
+  const cards = await Promise.all(rows.map(async (item) => {
     const dataUrl = await imageUrlToDataUrl(item.imageUrl);
-    return `<h2>${index + 1}. ${escapeHtml(item.date)} ${escapeHtml(item.type)} ${Number(item.amount || 0).toFixed(2)}</h2><p>${escapeHtml(item.description || item.fileName)}</p><img src="${dataUrl}">`;
+    return `<td class="shot-cell"><div class="shot-frame"><img src="${dataUrl}"></div></td>`;
   }));
-  const html = `<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:Microsoft YaHei,Arial,sans-serif}h1{font-size:22px}h2{font-size:16px;margin:24px 0 6px}p{margin:0 0 8px;color:#555}img{display:block;max-width:640px;width:100%;height:auto;margin:0 0 18px;page-break-inside:avoid;border:1px solid #ddd}</style></head><body><h1>报销截图汇总</h1>${blocks.join("")}</body></html>`;
+  const pages = [];
+  for (let start = 0; start < cards.length; start += 10) {
+    const pageCards = cards.slice(start, start + 10);
+    while (pageCards.length < 10) pageCards.push(`<td class="shot-cell empty"></td>`);
+    pages.push(`<div class="page"><table class="shot-table"><tr>${pageCards.slice(0, 5).join("")}</tr><tr>${pageCards.slice(5, 10).join("")}</tr></table></div>`);
+  }
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>@page Section1{size:841.95pt 595.35pt;mso-page-orientation:landscape;margin:18pt 18pt 18pt 18pt}body{margin:0}.Section1{page:Section1}.page{width:805.95pt;height:559.35pt;page-break-after:always;overflow:hidden}.shot-table{width:805.95pt;height:559.35pt;border-collapse:collapse;table-layout:fixed}.shot-cell{width:161.19pt;height:279.675pt;padding:0;border:0.75pt solid #d9d9d9;vertical-align:middle;text-align:center;overflow:hidden;page-break-inside:avoid}.shot-frame{width:100%;height:100%;overflow:hidden;text-align:center}.shot-frame img{display:block;width:100%;height:auto;border:0}.empty{border-color:#eeeeee}.page:last-child{page-break-after:auto}</style></head><body><div class="Section1">${pages.join("")}</div></body></html>`;
   downloadBlob(new Blob(["\ufeff" + html], { type: "application/msword;charset=utf-8" }), "报销截图汇总.doc");
 }
 

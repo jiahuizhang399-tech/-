@@ -524,25 +524,16 @@ td textarea {
 
   .report-preview {
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .report-block {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    min-width: 900px;
+    overflow: hidden;
   }
 
   .report-block table {
     min-width: 900px;
-  }
-
-  .report-block h3 {
-    position: sticky;
-    left: 0;
-    min-width: 100%;
-  }
-
-  .report-block .empty {
-    min-width: 100%;
   }
 }
 
