@@ -59,6 +59,7 @@ async function handleFiles(fileList) {
       const mainAmountResult = await Tesseract.recognize(images.mainAmountRegion, "eng", { tessedit_char_whitelist: "0123456789.,-+¥￥YyOo " });
       const lowerMainAmountResult = await Tesseract.recognize(images.lowerMainAmountRegion, "eng", { tessedit_char_whitelist: "0123456789.,-+¥￥YyOo " });
       const upperResult = await Tesseract.recognize(images.upperRegion, "chi_sim+eng");
+      const dateResult = await Tesseract.recognize(images.dateRegion, "chi_sim+eng", { tessedit_char_whitelist: "0123456789年月日-/.:： 支付交易创建完成时间" });
       const visualAmounts = [
         extractLargestVisualAmount(mainAmountResult.data),
         extractLargestVisualAmount(lowerMainAmountResult.data),
@@ -68,7 +69,7 @@ async function handleFiles(fileList) {
         extractLargestVisualAmount(upperResult.data),
         fullVisualAmount,
       ];
-      text = `${text}\n__VISUAL_AMOUNT__ ${bestVisualAmount(visualAmounts)}\n__MAIN_AMOUNT_REGION__\n${mainAmountResult.data.text || ""}\n__LOWER_MAIN_AMOUNT_REGION__\n${lowerMainAmountResult.data.text || ""}\n__AMOUNT_REGION__\n${amountResult.data.text || ""}\n__MIDDLE_AMOUNT_REGION__\n${middleResult.data.text || ""}\n__TOP_AMOUNT_REGION__\n${topAmountResult.data.text || ""}\n__UPPER_REGION__\n${upperResult.data.text || ""}`;
+      text = `${text}\n__VISUAL_AMOUNT__ ${bestVisualAmount(visualAmounts)}\n__DATE_REGION__\n${dateResult.data.text || ""}\n__MAIN_AMOUNT_REGION__\n${mainAmountResult.data.text || ""}\n__LOWER_MAIN_AMOUNT_REGION__\n${lowerMainAmountResult.data.text || ""}\n__AMOUNT_REGION__\n${amountResult.data.text || ""}\n__MIDDLE_AMOUNT_REGION__\n${middleResult.data.text || ""}\n__TOP_AMOUNT_REGION__\n${topAmountResult.data.text || ""}\n__UPPER_REGION__\n${upperResult.data.text || ""}`;
     } catch (error) {
       console.error(error);
       setStatus(`OCR 识别失败：${file.name}。已创建空白行，可手动填写。`);
@@ -279,7 +280,49 @@ function guessAmountFallback(rawText) {
 
 function normalizeText(value) { return String(value || "").replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 65248)).replace(/[，。；：]/g, " ").replace(/[−﹣－—–]/g, "-").replace(/[一ー](?=\s*\d{1,6}[,.]\d{1,2})/g, "-").replace(/[￥]/g, "¥").replace(/[oO](?=\d|\s|$)/g, "0").replace(/\s+/g, " ").toLowerCase(); }
 function normalizeAmount(value) { const amount = Number(String(value || "").replace(/,/g, "").replace(/^[-+]/, "").replace(/\s/g, "")); return Number.isFinite(amount) && amount > 0 && amount < 1000000 ? amount : 0; }
-function guessDate(text) { const y = new Date().getFullYear(); const m = text.match(/(20\d{2})[-/.年](\d{1,2})[-/.月](\d{1,2})|(?<!\d)(\d{1,2})[-/.月](\d{1,2})[-/.日]?/); if (!m) return new Date().toISOString().slice(0, 10); const year = m[1] || y; const month = m[2] || m[4]; const day = m[3] || m[5]; return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`; }
+function guessDate(text) {
+  const currentYear = new Date().getFullYear();
+  const normalized = normalizeText(text)
+    .replace(/([年月日])\s+/g, "$1")
+    .replace(/\s+([年月日])/g, "$1")
+    .replace(/(\d)\s+([-/.:：年月日])\s+(\d)/g, "$1$2$3")
+    .replace(/(\d)\s+(\d)(?=\s*(?:年|月|日|[-/.]))/g, "$1$2");
+  const candidates = [];
+  const patterns = [
+    /(20\d{2})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})\s*(?:日)?(?:\s+\d{1,2}\s*[:：]\s*\d{1,2}(?:\s*[:：]\s*\d{1,2})?)?/g,
+    /(?<!\d)(\d{1,2})\s*[-/.月]\s*(\d{1,2})\s*(?:日)?(?:\s+\d{1,2}\s*[:：]\s*\d{1,2}(?:\s*[:：]\s*\d{1,2})?)?/g,
+  ];
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(normalized))) {
+      const hasYear = match.length > 3 && /^20\d{2}$/.test(match[1]);
+      const year = hasYear ? Number(match[1]) : currentYear;
+      const month = Number(hasYear ? match[2] : match[1]);
+      const day = Number(hasYear ? match[3] : match[2]);
+      const value = normalizeDateParts(year, month, day);
+      if (!value) continue;
+      const windowText = normalized.slice(Math.max(0, match.index - 24), match.index + match[0].length + 24);
+      let score = 0;
+      if (/支付时间|交易时间|付款时间|完成时间|创建时间|下单时间|消费时间/.test(windowText)) score += 100;
+      if (/__date_region__/.test(windowText)) score += 80;
+      if (hasYear) score += 30;
+      if (/\d{1,2}\s*[:：]\s*\d{1,2}/.test(match[0])) score += 20;
+      if (/发票|开票|账单周期|有效期|订单|单号/.test(windowText)) score -= 60;
+      candidates.push({ value, score, index: match.index });
+    }
+  }
+  if (!candidates.length) return "";
+  candidates.sort((a, b) => b.score - a.score || a.index - b.index);
+  return candidates[0].value;
+}
+
+function normalizeDateParts(year, month, day) {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return "";
+  if (year < 2020 || year > 2099 || month < 1 || month > 12 || day < 1 || day > 31) return "";
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return "";
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
 function guessCategory(text) { for (const rule of categoryRules) if (rule.words.some((word) => text.includes(word.toLowerCase()))) return { category: rule.category, type: rule.type }; return { category: "其他费用", type: "其他费用" }; }
 function getUsefulTextLines(rawText) { return String(rawText || "").split(/\n+/).map((line) => line.trim().replace(/\s+/g, " ")).filter(Boolean); }
 function guessProductName(lines) {
@@ -308,7 +351,7 @@ function cleanProductName(value) {
   return text.slice(0, 40);
 }
 
-async function prepareImageForOcr(file) { const bitmap = await createImageBitmap(file); const scale = Math.min(2.5, Math.max(1.4, 1800 / bitmap.width)); const canvas = createScaledCanvas(bitmap, scale); enhanceCanvas(canvas); return { full: await canvasToBlob(canvas, file), mainAmountRegion: await canvasToBlob(cropCanvas(canvas, canvas.width * .22, canvas.height * .20, canvas.width * .56, canvas.height * .13), file), lowerMainAmountRegion: await canvasToBlob(cropCanvas(canvas, canvas.width * .20, canvas.height * .23, canvas.width * .60, canvas.height * .14), file), amountRegion: await canvasToBlob(cropCanvas(canvas, canvas.width * .10, canvas.height * .12, canvas.width * .80, canvas.height * .28), file), topAmountRegion: await canvasToBlob(cropCanvas(canvas, canvas.width * .14, canvas.height * .18, canvas.width * .72, canvas.height * .22), file), middleRegion: await canvasToBlob(cropCanvas(canvas, canvas.width * .12, canvas.height * .24, canvas.width * .76, canvas.height * .30), file), upperRegion: await canvasToBlob(cropCanvas(canvas, canvas.width * .03, canvas.height * .03, canvas.width * .94, canvas.height * .52), file) }; }
+async function prepareImageForOcr(file) { const bitmap = await createImageBitmap(file); const scale = Math.min(2.5, Math.max(1.4, 1800 / bitmap.width)); const canvas = createScaledCanvas(bitmap, scale); enhanceCanvas(canvas); return { full: await canvasToBlob(canvas, file), mainAmountRegion: await canvasToBlob(cropCanvas(canvas, canvas.width * .22, canvas.height * .20, canvas.width * .56, canvas.height * .13), file), lowerMainAmountRegion: await canvasToBlob(cropCanvas(canvas, canvas.width * .20, canvas.height * .23, canvas.width * .60, canvas.height * .14), file), amountRegion: await canvasToBlob(cropCanvas(canvas, canvas.width * .10, canvas.height * .12, canvas.width * .80, canvas.height * .28), file), topAmountRegion: await canvasToBlob(cropCanvas(canvas, canvas.width * .14, canvas.height * .18, canvas.width * .72, canvas.height * .22), file), middleRegion: await canvasToBlob(cropCanvas(canvas, canvas.width * .12, canvas.height * .24, canvas.width * .76, canvas.height * .30), file), upperRegion: await canvasToBlob(cropCanvas(canvas, canvas.width * .03, canvas.height * .03, canvas.width * .94, canvas.height * .52), file), dateRegion: await canvasToBlob(cropCanvas(canvas, canvas.width * .04, canvas.height * .40, canvas.width * .92, canvas.height * .45), file) }; }
 function createScaledCanvas(bitmap, scale) { const canvas = document.createElement("canvas"); canvas.width = Math.round(bitmap.width * scale); canvas.height = Math.round(bitmap.height * scale); canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height); return canvas; }
 function cropCanvas(sourceCanvas, left, top, width, height) { const canvas = document.createElement("canvas"); canvas.width = Math.round(width); canvas.height = Math.round(height); canvas.getContext("2d").drawImage(sourceCanvas, Math.round(left), Math.round(top), Math.round(width), Math.round(height), 0, 0, canvas.width, canvas.height); return canvas; }
 function enhanceCanvas(canvas) { const ctx = canvas.getContext("2d"); const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height); const data = imageData.data; for (let i = 0; i < data.length; i += 4) { const gray = data[i] * .299 + data[i + 1] * .587 + data[i + 2] * .114; const c = Math.max(0, Math.min(255, (gray - 128) * 1.55 + 128)); data[i] = c; data[i + 1] = c; data[i + 2] = c; } ctx.putImageData(imageData, 0, 0); }
