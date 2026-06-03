@@ -31,9 +31,12 @@ dropZone.addEventListener("drop", (event) => handleFiles(event.dataTransfer.file
 invoiceDropZone.addEventListener("drop", (event) => handleInvoiceFiles(event.dataTransfer.files));
 $("#projectInput").addEventListener("input", renderAll);
 $("#personInput").addEventListener("input", renderAll);
+$("#addItemBtn").addEventListener("click", addManualItem);
 $("#clearBtn").addEventListener("click", () => { items.forEach(revokeInvoiceUrl); items = []; fileInput.value = ""; invoiceBatchInput.value = ""; setStatus("已清空，等待上传截图。"); renderAll(); });
 $("#exportCsvBtn").addEventListener("click", exportCsv);
 $("#exportXlsxBtn").addEventListener("click", exportXlsx);
+$("#exportScreenshotsBtn").addEventListener("click", exportScreenshotsDoc);
+$("#exportInvoicesBtn").addEventListener("click", exportInvoicesPdf);
 $("#viewerClose").addEventListener("click", closeImageViewer);
 $("#textClose").addEventListener("click", closeTextViewer);
 imageViewer.addEventListener("click", (event) => { if (event.target === imageViewer) closeImageViewer(); });
@@ -75,7 +78,7 @@ async function handleFiles(fileList) {
       setStatus(`OCR 识别失败：${file.name}。已创建空白行，可手动填写。`);
     }
     const parsed = parsePaymentText(text, file.name);
-    items.push({ id: crypto.randomUUID(), fileName: file.name, imageUrl, rawText: `${text}\n__AMOUNT_EXPLAIN__ ${explainPaymentAmount(text)}`, screenshotAmount: parsed.amount, invoiceFileName: "", invoiceFileUrl: "", invoiceLink: "", invoiceAmount: "", ...parsed });
+    items.push({ id: crypto.randomUUID(), fileName: file.name, imageUrl, rawText: `${text}\n__AMOUNT_EXPLAIN__ ${explainPaymentAmount(text)}`, screenshotAmount: parsed.amount, invoiceFile: null, invoiceFileName: "", invoiceFileUrl: "", invoiceLink: "", invoiceAmount: "", ...parsed });
     renderAll();
   }
   const missing = items.filter((item) => !item.amount).length;
@@ -104,6 +107,30 @@ async function handleInvoiceFiles(fileList) {
   renderAll();
   setStatus(failed.length ? `发票处理完成：已匹配 ${matched} 份，未匹配 ${failed.length} 份。${failed.slice(0, 3).join("；")}` : `发票处理完成：已匹配 ${matched} 份。`);
 }
+
+function addManualItem() {
+  items.push({
+    id: crypto.randomUUID(),
+    fileName: "手动新增",
+    imageUrl: "",
+    rawText: "手动新增明细，无 OCR 原文。",
+    date: new Date().toISOString().slice(0, 10),
+    category: "其他费用",
+    type: "其他费用",
+    amount: "",
+    screenshotAmount: "",
+    description: "",
+    invoiceFileName: "",
+    invoiceFile: null,
+    invoiceFileUrl: "",
+    invoiceLink: "",
+    invoiceAmount: "",
+    invoice: "待补",
+  });
+  setStatus("已新增一条手动明细，可直接填写。");
+  renderAll();
+}
+
 
 function parsePaymentText(text, fileName) {
   const compact = normalizeText(`${text}\n${fileName}`);
@@ -456,29 +483,32 @@ function findInvoiceFileNameAmount(text) {
   }
   return 0;
 }
-function matchInvoiceToItem(file, amounts) { const target = findInvoiceTarget(amounts); if (!target) return false; revokeInvoiceUrl(target); target.invoiceFileName = file.name; target.invoiceFileUrl = URL.createObjectURL(file); target.invoiceAmount = amounts.find((amount) => sameAmount(target.amount, amount)) || amounts[0] || ""; return true; }
+function matchInvoiceToItem(file, amounts) { const target = findInvoiceTarget(amounts); if (!target) return false; revokeInvoiceUrl(target); target.invoiceFile = file; target.invoiceFileName = file.name; target.invoiceFileUrl = URL.createObjectURL(file); target.invoiceAmount = amounts.find((amount) => sameAmount(target.amount, amount)) || amounts[0] || ""; return true; }
 function findInvoiceTarget(amounts) { const amountList = Array.isArray(amounts) ? amounts : [amounts]; return items.find((item) => !item.invoiceFileName && amountList.some((amount) => sameAmount(item.amount, amount))); }
 function sameAmount(left, right) { return Math.abs(Number(left || 0) - Number(right || 0)) < .01; }
 function revokeInvoiceUrl(item) { if (item.invoiceFileUrl) URL.revokeObjectURL(item.invoiceFileUrl); }
 
 function renderAll() { renderTable(); renderSummary(); renderReportPreview(); }
-function renderTable() { tableBody.innerHTML = ""; if (!items.length) { tableBody.innerHTML = `<tr><td colspan="10" class="empty">还没有明细。上传付款截图后会自动生成待确认行。</td></tr>`; return; } for (const item of items) { const row = document.createElement("tr"); row.innerHTML = `<td><input type="date" value="${escapeHtml(item.date)}" data-id="${item.id}" data-field="date"></td><td>${categorySelect(item)}</td><td><input value="${escapeHtml(item.type)}" data-id="${item.id}" data-field="type"></td><td><input class="${item.amount ? "" : "needs-check"}" type="number" step="0.01" value="${escapeHtml(item.amount)}" placeholder="待填写" data-id="${item.id}" data-field="amount"></td><td><textarea data-id="${item.id}" data-field="description">${escapeHtml(item.description)}</textarea></td><td>${hasInvoice(item)}</td><td>${invoiceCell(item)}</td><td><button class="thumb-button" type="button" data-preview="${item.id}"><img class="thumb" src="${item.imageUrl}" alt="${escapeHtml(item.fileName)}"></button></td><td><button class="ghost" data-raw="${item.id}">原文</button></td><td><button class="delete" data-delete="${item.id}">删除</button></td>`; tableBody.appendChild(row); } bindTableEvents(); }
-function bindTableEvents() { tableBody.querySelectorAll("input,select,textarea").forEach((control) => control.addEventListener("input", (event) => { updateItem(event.target.dataset.id, event.target.dataset.field, event.target.value); if (event.target.dataset.field === "amount") event.target.classList.toggle("needs-check", !event.target.value); })); tableBody.querySelectorAll("[data-delete]").forEach((button) => button.addEventListener("click", () => { const item = items.find((entry) => entry.id === button.dataset.delete); if (item) revokeInvoiceUrl(item); items = items.filter((entry) => entry.id !== button.dataset.delete); renderAll(); })); tableBody.querySelectorAll("[data-preview]").forEach((button) => button.addEventListener("click", () => openImageViewer(button.dataset.preview))); tableBody.querySelectorAll("[data-raw]").forEach((button) => button.addEventListener("click", () => openTextViewer(button.dataset.raw))); tableBody.querySelectorAll("[data-invoice-file]").forEach((input) => input.addEventListener("change", (event) => updateInvoiceFile(input.dataset.invoiceFile, event.target.files[0]))); tableBody.querySelectorAll("[data-remove-invoice]").forEach((button) => button.addEventListener("click", () => removeInvoiceFile(button.dataset.removeInvoice))); }
+function renderTable() { tableBody.innerHTML = ""; if (!items.length) { tableBody.innerHTML = `<tr><td colspan="9" class="empty">还没有明细。上传付款截图后会自动生成待确认行。</td></tr>`; return; } for (const item of sortedItems()) { const row = document.createElement("tr"); row.innerHTML = `<td><input type="date" value="${escapeHtml(item.date)}" data-id="${item.id}" data-field="date"></td><td>${categorySelect(item)}</td><td><input value="${escapeHtml(item.type)}" data-id="${item.id}" data-field="type"></td><td><input class="${item.amount ? "" : "needs-check"}" type="number" step="0.01" value="${escapeHtml(item.amount)}" placeholder="待填写" data-id="${item.id}" data-field="amount"></td><td><textarea data-id="${item.id}" data-field="description">${escapeHtml(item.description)}</textarea></td><td>${hasInvoice(item)}</td><td>${invoiceCell(item)}</td><td>${screenshotCell(item)}</td><td><button class="delete" data-delete="${item.id}">删除</button></td>`; tableBody.appendChild(row); } bindTableEvents(); }
+function bindTableEvents() { tableBody.querySelectorAll("input,select,textarea").forEach((control) => control.addEventListener("input", (event) => { updateItem(event.target.dataset.id, event.target.dataset.field, event.target.value); if (event.target.dataset.field === "amount") event.target.classList.toggle("needs-check", !event.target.value); })); tableBody.querySelectorAll("[data-delete]").forEach((button) => button.addEventListener("click", () => { const item = items.find((entry) => entry.id === button.dataset.delete); if (item) revokeInvoiceUrl(item); items = items.filter((entry) => entry.id !== button.dataset.delete); renderAll(); })); tableBody.querySelectorAll("[data-preview]").forEach((button) => button.addEventListener("click", () => openImageViewer(button.dataset.preview))); tableBody.querySelectorAll("[data-invoice-file]").forEach((input) => input.addEventListener("change", (event) => updateInvoiceFile(input.dataset.invoiceFile, event.target.files[0]))); tableBody.querySelectorAll("[data-remove-invoice]").forEach((button) => button.addEventListener("click", () => removeInvoiceFile(button.dataset.removeInvoice))); }
 function categorySelect(item) { return `<select data-id="${item.id}" data-field="category">${categories.map((c) => `<option ${item.category === c ? "selected" : ""}>${c}</option>`).join("")}</select>`; }
+function screenshotCell(item) { return item.imageUrl ? `<button class="thumb-button" type="button" data-preview="${item.id}"><img class="thumb" src="${item.imageUrl}" alt="${escapeHtml(item.fileName)}"></button>` : `<span class="thumb-empty">手动</span>`; }
 function invoiceCell(item) { return `<div class="invoice-cell"><label class="invoice-upload">上传 PDF<input type="file" accept="application/pdf,.pdf" data-invoice-file="${item.id}"></label>${item.invoiceFileUrl ? `<span class="invoice-file-row"><a class="invoice-file" href="${item.invoiceFileUrl}" target="_blank" rel="noopener">${escapeHtml(item.invoiceFileName)}</a><button class="invoice-remove" type="button" data-remove-invoice="${item.id}">删除</button></span>` : `<span class="invoice-empty">未上传 PDF</span>`}${item.invoiceAmount ? `<span class="invoice-amount">发票金额：${escapeHtml(item.invoiceAmount)}</span>` : ""}<input type="url" placeholder="发票链接" value="${escapeHtml(item.invoiceLink || "")}" data-id="${item.id}" data-field="invoiceLink"></div>`; }
-async function updateInvoiceFile(id, file) { if (!file) return; const item = items.find((entry) => entry.id === id); if (!item) return; revokeInvoiceUrl(item); item.invoiceFileName = file.name; item.invoiceFileUrl = URL.createObjectURL(file); item.invoiceAmount = window.pdfjsLib ? ((await getInvoiceAmounts(file))[0] || "") : ""; setStatus(item.invoiceAmount ? `已上传发票 PDF：${file.name}，识别金额 ${item.invoiceAmount}` : `已上传发票 PDF：${file.name}`); renderTable(); }
-function removeInvoiceFile(id) { const item = items.find((entry) => entry.id === id); if (!item) return; revokeInvoiceUrl(item); item.invoiceFileName = ""; item.invoiceFileUrl = ""; item.invoiceAmount = ""; if (item.screenshotAmount) item.amount = item.screenshotAmount; setStatus(item.screenshotAmount ? `已删除该行发票 PDF，金额已恢复为截图识别金额 ${item.screenshotAmount}。` : "已删除该行发票 PDF。"); renderAll(); }
-function updateItem(id, field, value) { const item = items.find((entry) => entry.id === id); if (!item) return; item[field] = value; renderSummary(); renderReportPreview(); }
+async function updateInvoiceFile(id, file) { if (!file) return; const item = items.find((entry) => entry.id === id); if (!item) return; revokeInvoiceUrl(item); item.invoiceFile = file; item.invoiceFileName = file.name; item.invoiceFileUrl = URL.createObjectURL(file); item.invoiceAmount = window.pdfjsLib ? ((await getInvoiceAmounts(file))[0] || "") : ""; setStatus(item.invoiceAmount ? `已上传发票 PDF：${file.name}，识别金额 ${item.invoiceAmount}` : `已上传发票 PDF：${file.name}`); renderTable(); }
+function removeInvoiceFile(id) { const item = items.find((entry) => entry.id === id); if (!item) return; revokeInvoiceUrl(item); item.invoiceFile = null; item.invoiceFileName = ""; item.invoiceFileUrl = ""; item.invoiceAmount = ""; if (item.screenshotAmount) item.amount = item.screenshotAmount; setStatus(item.screenshotAmount ? `已删除该行发票 PDF，金额已恢复为截图识别金额 ${item.screenshotAmount}。` : "已删除该行发票 PDF。"); renderAll(); }
+function updateItem(id, field, value) { const item = items.find((entry) => entry.id === id); if (!item) return; item[field] = value; if (field === "date") renderAll(); else { renderSummary(); renderReportPreview(); } }
 function getTotals() { return categories.map((category) => { const matched = items.filter((item) => item.category === category); return { category, amount: sumAmount(matched), count: matched.length }; }); }
 function renderSummary() { const totals = getTotals(); $("#totalAmount").textContent = sumAmount(items).toFixed(2); $("#summaryCards").innerHTML = totals.map((item) => `<div class="summary-card"><span>${item.category}<br><small>${item.count} 条</small></span><strong>${item.amount.toFixed(2)}</strong></div>`).join(""); }
 function renderReportPreview() { $("#reportPreview").innerHTML = `<div class="report-block"><h3>报销汇总</h3><table><tbody><tr><th>关联项目编号</th><td>${escapeHtml($("#projectInput").value)}</td><th>报销人</th><td>${escapeHtml($("#personInput").value)}</td></tr><tr><th>合计</th><td>${sumAmount(items).toFixed(2)}</td><th>明细条数</th><td>${items.length}</td></tr></tbody></table></div>` + categories.map(reportBlock).join(""); }
-function reportBlock(category) { const matched = items.filter((item) => item.category === category); const rows = matched.map((item) => `<tr><td>${escapeHtml(item.date)}</td><td>${escapeHtml(item.type)}</td><td>${Number(item.amount || 0).toFixed(2)}</td><td>${escapeHtml(item.description)}</td><td>${hasInvoice(item)}</td><td>${escapeHtml(invoiceSummary(item))}</td></tr>`).join(""); return `<div class="report-block"><h3>${category}合计：${sumAmount(matched).toFixed(2)}</h3>${matched.length ? `<table><thead><tr><th>时间</th><th>费用类型</th><th>金额</th><th>费用说明</th><th>是否有发票</th><th>发票</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">暂无${category}明细</div>`}</div>`; }
+function reportBlock(category) { const matched = sortedItems().filter((item) => item.category === category); const rows = matched.map((item) => `<tr><td>${escapeHtml(item.date)}</td><td>${escapeHtml(item.type)}</td><td>${Number(item.amount || 0).toFixed(2)}</td><td>${escapeHtml(item.description)}</td><td>${hasInvoice(item)}</td><td>${escapeHtml(invoiceSummary(item))}</td></tr>`).join(""); return `<div class="report-block"><h3>${category}合计：${sumAmount(matched).toFixed(2)}</h3>${matched.length ? `<table><thead><tr><th>时间</th><th>费用类型</th><th>金额</th><th>费用说明</th><th>是否有发票</th><th>发票</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">暂无${category}明细</div>`}</div>`; }
 function sumAmount(list) { return list.reduce((sum, item) => sum + Number(item.amount || 0), 0); }
 function invoiceSummary(item) { return [item.invoiceFileName, item.invoiceAmount ? `金额 ${item.invoiceAmount}` : "", item.invoiceLink].filter(Boolean).join(" / "); }
 function hasInvoice(item) { return item.invoiceFileName || item.invoiceLink ? "是" : "否"; }
-function exportRows() { const project = $("#projectInput").value.trim(); const person = $("#personInput").value.trim(); return items.map((item, index) => ({ 序号: index + 1, 关联项目编号: project, 报销人: person, 日期: item.date, 一级费用类别: item.category, 费用类型: item.type, 金额: Number(item.amount || 0), 费用说明: item.description, 是否有发票: hasInvoice(item), 发票PDF文件名: item.invoiceFileName || "", 发票识别金额: item.invoiceAmount || "", 发票链接: item.invoiceLink || "", 付款截图文件名: item.fileName, 备注: "由付款截图识别整理" })); }
+function sortedItems(list = items) { return [...list].sort((a, b) => dateSortValue(a.date) - dateSortValue(b.date) || String(a.fileName || "").localeCompare(String(b.fileName || ""), "zh-Hans-CN")); }
+function dateSortValue(value) { const date = Date.parse(String(value || "").replace(/\//g, "-")); return Number.isFinite(date) ? date : Number.MAX_SAFE_INTEGER; }
+function exportRows() { const project = $("#projectInput").value.trim(); const person = $("#personInput").value.trim(); return sortedItems().map((item, index) => ({ 序号: index + 1, 关联项目编号: project, 报销人: person, 日期: item.date, 一级费用类别: item.category, 费用类型: item.type, 金额: Number(item.amount || 0), 费用说明: item.description, 是否有发票: hasInvoice(item), 发票PDF文件名: item.invoiceFileName || "", 发票识别金额: item.invoiceAmount || "", 发票链接: item.invoiceLink || "", 付款截图文件名: item.fileName, 备注: "由付款截图识别整理" })); }
 function exportCsv() { if (!items.length) return setStatus("没有可导出的明细。"); const rows = exportRows(); const headers = Object.keys(rows[0]); const csv = [headers.join(",")].concat(rows.map((row) => headers.map((key) => csvCell(row[key])).join(","))).join("\n"); downloadBlob(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }), "报销明细.csv"); }
-function exportXlsx() { if (!items.length) return setStatus("没有可导出的明细。"); const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(buildTemplateRows()); ws["!merges"] = [{ s: { r: 1, c: 2 }, e: { r: 1, c: 3 } }]; ws["!cols"] = [{ wch: 4 }, { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 58 }]; XLSX.utils.book_append_sheet(wb, ws, "Sheet1"); XLSX.writeFile(wb, "自动整理报销表.xlsx"); }
+function exportXlsx() { if (!items.length) return setStatus("没有可导出的明细。"); const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(buildTemplateRows()); ws["!merges"] = [{ s: { r: 1, c: 2 }, e: { r: 1, c: 3 } }]; ws["!cols"] = [{ wch: 9.16 }, { wch: 16.66 }, { wch: 11.83 }, { wch: 11 }, { wch: 88.83 }]; ws["!rows"] = Array.from({ length: 84 }, (_, index) => ({ hpt: index === 0 ? 35.25 : 18 })); applyTemplateSheetStyle(ws); XLSX.utils.book_append_sheet(wb, ws, "Sheet1"); XLSX.writeFile(wb, "自动整理报销表.xlsx"); }
 
 function buildTemplateRows() {
   const rows = Array.from({ length: 84 }, () => Array(5).fill(null));
@@ -489,24 +519,24 @@ function buildTemplateRows() {
   rows[2][3] = "发票金额";
 
   const config = [
-    { category: "交通费", titleRow: 10, headerRow: 11, startRow: 12, endRow: 22, totalRow: 3 },
-    { category: "差旅费", titleRow: 26, headerRow: 27, startRow: 28, endRow: 38, totalRow: 4 },
-    { category: "餐费", titleRow: 42, headerRow: 43, startRow: 44, endRow: 52, totalRow: 5 },
-    { category: "物料费", titleRow: 57, headerRow: 58, startRow: 59, endRow: 67, totalRow: 6 },
-    { category: "其他费用", titleRow: 72, headerRow: 73, startRow: 74, endRow: 83, totalRow: 7 },
+    { category: "交通费", title: "交通费", titleRow: 10, headerRow: 11, startRow: 12, endRow: 21, sumRow: 22, totalRow: 3, note: "费用说明（需说明该笔费用如何产生，比如私车公用的起始地点和行驶里程、停车时间、高速费的起始地点等）" },
+    { category: "差旅费", title: "差旅费", titleRow: 24, headerRow: 25, startRow: 26, endRow: 37, sumRow: 38, totalRow: 4, note: "费用说明（住宿费需说明几人几间房几晚等）" },
+    { category: "餐费", title: "餐费", titleRow: 40, headerRow: 41, startRow: 42, endRow: 51, sumRow: 52, totalRow: 5, note: "费用说明（需说明几人用餐及用餐场景）" },
+    { category: "物料费", title: "物料采购", titleRow: 55, headerRow: 56, startRow: 57, endRow: 66, sumRow: 67, totalRow: 6, note: "费用说明（需说明采购原因及用途）" },
+    { category: "其他费用", title: "其他费用", titleRow: 71, headerRow: 72, startRow: 73, endRow: 82, sumRow: 83, totalRow: 7, note: "费用说明" },
   ];
 
   for (const block of config) {
     rows[block.totalRow][1] = `${block.category}合计`;
-    rows[block.totalRow][2] = { f: `SUM(D${block.startRow + 1}:D${block.endRow + 1})` };
+    rows[block.totalRow][2] = { f: `D${block.sumRow + 1}` };
     rows[block.totalRow][3] = { f: `SUM(E${block.startRow + 1}:E${block.endRow + 1})` };
-    rows[block.titleRow][1] = block.category;
+    rows[block.titleRow][1] = block.title;
     rows[block.headerRow][1] = "时间";
     rows[block.headerRow][2] = "费用类型";
     rows[block.headerRow][3] = "金额";
-    rows[block.headerRow][4] = "费用说明（需说明该笔费用如何产生，比如私车公用的起始地点和行驶里程、停车时间、高速费的起始地点等）";
+    rows[block.headerRow][4] = block.note;
 
-    const matched = items.filter((item) => item.category === block.category).slice(0, block.endRow - block.startRow + 1);
+    const matched = sortedItems(items.filter((item) => item.category === block.category)).slice(0, block.endRow - block.startRow + 1);
     matched.forEach((item, index) => {
       const row = rows[block.startRow + index];
       row[1] = item.date;
@@ -525,6 +555,51 @@ function buildTemplateRows() {
   rows[8][2] = { f: "SUM(C4:C8)" };
   rows[8][3] = { f: "SUM(D4:D8)" };
   return rows;
+}
+
+function applyTemplateSheetStyle(ws) {
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+  for (let r = range.s.r; r <= range.e.r; r += 1) {
+    for (let c = 0; c <= 4; c += 1) {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      if (!ws[ref]) ws[ref] = { t: "z", v: null };
+      ws[ref].s = {
+        font: { name: "微软雅黑", sz: 10 },
+        alignment: { vertical: "center", wrapText: c === 4 },
+        border: { top: { style: "thin", color: { rgb: "D9D9D9" } }, bottom: { style: "thin", color: { rgb: "D9D9D9" } }, left: { style: "thin", color: { rgb: "D9D9D9" } }, right: { style: "thin", color: { rgb: "D9D9D9" } } },
+      };
+    }
+  }
+}
+
+async function exportScreenshotsDoc() {
+  const rows = sortedItems().filter((item) => item.imageUrl);
+  if (!rows.length) return setStatus("没有可导出的截图。");
+  const blocks = await Promise.all(rows.map(async (item, index) => {
+    const dataUrl = await imageUrlToDataUrl(item.imageUrl);
+    return `<h2>${index + 1}. ${escapeHtml(item.date)} ${escapeHtml(item.type)} ${Number(item.amount || 0).toFixed(2)}</h2><p>${escapeHtml(item.description || item.fileName)}</p><img src="${dataUrl}">`;
+  }));
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:Microsoft YaHei,Arial,sans-serif}h1{font-size:22px}h2{font-size:16px;margin:24px 0 6px}p{margin:0 0 8px;color:#555}img{display:block;max-width:640px;width:100%;height:auto;margin:0 0 18px;page-break-inside:avoid;border:1px solid #ddd}</style></head><body><h1>报销截图汇总</h1>${blocks.join("")}</body></html>`;
+  downloadBlob(new Blob(["\ufeff" + html], { type: "application/msword;charset=utf-8" }), "报销截图汇总.doc");
+}
+
+async function exportInvoicesPdf() {
+  const invoiceItems = sortedItems().filter((item) => item.invoiceFile);
+  if (!invoiceItems.length) return setStatus("没有可导出的发票 PDF。请先上传发票 PDF 文件。");
+  if (!window.PDFLib) return setStatus("PDF 合并组件还没加载完成，请稍后再试。");
+  const merged = await PDFLib.PDFDocument.create();
+  for (const item of invoiceItems) {
+    const source = await PDFLib.PDFDocument.load(await item.invoiceFile.arrayBuffer());
+    const pages = await merged.copyPages(source, source.getPageIndices());
+    pages.forEach((page) => merged.addPage(page));
+  }
+  const bytes = await merged.save();
+  downloadBlob(new Blob([bytes], { type: "application/pdf" }), "报销发票汇总.pdf");
+}
+
+async function imageUrlToDataUrl(url) {
+  const blob = await (await fetch(url)).blob();
+  return new Promise((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.readAsDataURL(blob); });
 }
 
 function invoiceTotalByCategory(category) {

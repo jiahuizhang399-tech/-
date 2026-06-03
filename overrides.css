@@ -1,8 +1,109 @@
 .invoice-file-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.shell {
+  width: min(1440px, calc(100% - 32px));
+}
+
+.grid.two {
+  grid-template-columns: minmax(0, 1fr) 320px;
+  align-items: start;
+}
+
+.summary-cards {
+  gap: 10px;
+}
+
+.summary-card {
+  padding: 14px 16px;
+  min-height: 74px;
+}
+
+.summary-card strong {
+  font-size: 24px;
+}
+
+.report-preview {
+  display: grid;
+  gap: 16px;
+}
+
+.report-block {
+  overflow: hidden;
+  border: 1px solid #dfd7ca;
+  border-radius: 16px;
+  background: #fffdf8;
+}
+
+.report-block h3 {
+  margin: 0;
+  padding: 14px 16px;
+  background: #245f66;
+  color: #fff;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.report-block table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.report-block th,
+.report-block td {
+  height: 42px;
+  padding: 10px 12px;
+  border-top: 1px solid #dfd7ca;
+  text-align: left;
+  vertical-align: middle;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.report-block th {
+  color: #69757a;
+  font-weight: 700;
+  background: rgba(255, 253, 248, .94);
+}
+
+.report-block td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-block table th:nth-child(1),
+.report-block table td:nth-child(1) { width: 120px; }
+
+.report-block table th:nth-child(2),
+.report-block table td:nth-child(2) { width: 130px; }
+
+.report-block table th:nth-child(3),
+.report-block table td:nth-child(3) { width: 110px; }
+
+.report-block table th:nth-child(4),
+.report-block table td:nth-child(4) { width: 34%; }
+
+.report-block table th:nth-child(5),
+.report-block table td:nth-child(5) { width: 110px; }
+
+.report-block table th:nth-child(6),
+.report-block table td:nth-child(6) { width: 32%; }
+
+.report-block .empty {
+  min-height: 64px;
   display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  flex-wrap: wrap;
+  align-items: center;
+  padding: 0 16px;
+  color: #69757a;
+  border-top: 1px solid #dfd7ca;
+  background: #fffdf8;
 }
 
 .invoice-remove {
@@ -14,7 +115,381 @@
 }
 
 td textarea {
-  min-height: 52px;
-  max-height: 90px;
+  min-height: 44px;
+  max-height: 44px;
   overflow: auto;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scrollbar-gutter: stable;
+}
+
+#itemsTable {
+  table-layout: fixed;
+  width: 1220px;
+  min-width: 1220px;
+  border-collapse: collapse;
+}
+
+#itemsTable th,
+#itemsTable td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+#itemsTable thead th {
+  padding-top: 8px;
+  padding-bottom: 12px;
+  font-size: 14px;
+  white-space: nowrap;
+  text-align: left;
+}
+
+#itemsTable thead th:nth-child(6),
+#itemsTable thead th:nth-child(8),
+#itemsTable thead th:nth-child(9) {
+  text-align: center;
+}
+
+#itemsTable tbody tr {
+  border-top: 1px solid #dfd7ca;
+}
+
+#itemsTable tbody td {
+  height: 112px;
+}
+
+#itemsTable th:nth-child(1),
+#itemsTable td:nth-child(1) { width: 168px; }
+
+#itemsTable th:nth-child(2),
+#itemsTable td:nth-child(2) { width: 144px; }
+
+#itemsTable th:nth-child(3),
+#itemsTable td:nth-child(3) { width: 144px; }
+
+#itemsTable th:nth-child(4),
+#itemsTable td:nth-child(4) { width: 132px; }
+
+#itemsTable th:nth-child(5),
+#itemsTable td:nth-child(5) { width: 380px; }
+
+#itemsTable th:nth-child(6),
+#itemsTable td:nth-child(6) { width: 92px; text-align: center; }
+
+#itemsTable th:nth-child(7),
+#itemsTable td:nth-child(7) { width: 272px; }
+
+#itemsTable th:nth-child(8),
+#itemsTable td:nth-child(8) { width: 108px; text-align: center; }
+
+#itemsTable th:nth-child(9),
+#itemsTable td:nth-child(9) { width: 76px; text-align: center; }
+
+#itemsTable input,
+#itemsTable select,
+#itemsTable textarea {
+  width: 100%;
+  max-width: 100%;
+  height: 44px;
+  min-height: 44px;
+  padding: 8px 12px;
+  font-size: 14px;
+  line-height: 1.35;
+  border-radius: 12px;
+}
+
+#itemsTable input[type="date"] {
+  min-width: 148px;
+  padding-left: 8px;
+  padding-right: 5px;
+  font-size: 14px;
+}
+
+#itemsTable input[type="number"] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#itemsTable textarea {
+  height: 44px;
+  min-height: 44px;
+  max-height: 44px;
+  padding-top: 8px;
+  resize: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+#itemsTable .invoice-cell {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 6px 10px;
+  font-size: 12px;
+  align-items: center;
+  justify-items: stretch;
+}
+
+#itemsTable .invoice-file-row,
+#itemsTable .invoice-empty {
+  min-width: 0;
+}
+
+#itemsTable .invoice-file {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 30px;
+}
+
+#itemsTable .invoice-empty,
+#itemsTable .invoice-amount {
+  color: #69757a;
+  line-height: 1.2;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+#itemsTable .invoice-amount {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#itemsTable .invoice-cell input[type="url"] {
+  grid-column: 1 / -1;
+  height: 30px;
+  min-height: 30px;
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+#itemsTable .delete,
+#itemsTable .invoice-upload,
+#itemsTable .invoice-remove {
+  height: 30px;
+  min-height: 30px;
+  padding: 5px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+#itemsTable .invoice-upload {
+  justify-self: start;
+  margin: 0;
+}
+
+#itemsTable .thumb-button {
+  display: inline-grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  padding: 0;
+  border: 1px solid #dfd7ca;
+  border-radius: 12px;
+  background: #fffdf8;
+  overflow: hidden;
+}
+
+#itemsTable .thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#itemsTable .thumb-empty {
+  display: inline-grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border: 1px dashed #dfd7ca;
+  border-radius: 12px;
+  color: #69757a;
+  font-size: 12px;
+  background: #fffdf8;
+}
+
+#itemsTable .delete {
+  color: #b42318;
+  border-color: #ffd5cf;
+  background: #fff4f2;
+}
+
+#itemsTable td:nth-child(8),
+#itemsTable td:nth-child(9) {
+  overflow: hidden;
+}
+
+@media (min-width: 1200px) {
+  #itemsTable {
+    min-width: 1220px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .grid.two {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .shell {
+    width: min(100% - 20px, 560px);
+    padding: 18px 0 36px;
+  }
+
+  .hero,
+  .upload-panel,
+  .grid.two {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .hero-card {
+    min-height: 96px;
+  }
+
+  .panel {
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .section-head {
+    align-items: center;
+    gap: 12px;
+  }
+
+  .section-head h2 {
+    font-size: 22px;
+  }
+
+  .drop-zone {
+    min-height: 112px;
+  }
+
+  .drop-copy strong {
+    font-size: 18px;
+  }
+
+  .project-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .table-wrap {
+    overflow: visible;
+  }
+
+  #itemsTable,
+  #itemsTable thead,
+  #itemsTable tbody,
+  #itemsTable tr,
+  #itemsTable th,
+  #itemsTable td {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  #itemsTable {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  #itemsTable thead {
+    display: none;
+  }
+
+  #itemsTable tbody tr {
+    margin: 0 0 14px;
+    padding: 14px;
+    border: 1px solid #dfd7ca;
+    border-radius: 18px;
+    background: rgba(255, 253, 248, .92);
+    box-shadow: 0 10px 26px rgba(31, 42, 46, .06);
+  }
+
+  #itemsTable tbody td {
+    display: grid;
+    grid-template-columns: 74px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    height: auto;
+    padding: 7px 0;
+    text-align: left !important;
+    border: 0;
+  }
+
+  #itemsTable tbody td::before {
+    color: #69757a;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  #itemsTable tbody td:nth-child(1)::before { content: "日期"; }
+  #itemsTable tbody td:nth-child(2)::before { content: "类别"; }
+  #itemsTable tbody td:nth-child(3)::before { content: "类型"; }
+  #itemsTable tbody td:nth-child(4)::before { content: "金额"; }
+  #itemsTable tbody td:nth-child(5)::before { content: "说明"; }
+  #itemsTable tbody td:nth-child(6)::before { content: "发票"; }
+  #itemsTable tbody td:nth-child(7)::before { content: "PDF/链接"; }
+  #itemsTable tbody td:nth-child(8)::before { content: "截图"; }
+  #itemsTable tbody td:nth-child(9)::before { content: "操作"; }
+
+  #itemsTable input,
+  #itemsTable select,
+  #itemsTable textarea {
+    min-height: 42px;
+    padding: 8px 10px;
+    font-size: 15px;
+  }
+
+  #itemsTable textarea {
+    min-height: 70px;
+  }
+
+  #itemsTable .invoice-cell {
+    width: 100%;
+  }
+
+  #itemsTable .thumb-button,
+  #itemsTable .thumb-empty,
+  #itemsTable .delete {
+    justify-self: start;
+  }
+
+  #itemsTable .thumb {
+    width: 52px;
+    height: 52px;
+  }
+
+  .summary-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .report-preview {
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 420px) {
+  #itemsTable tbody td {
+    grid-template-columns: 60px minmax(0, 1fr);
+  }
+
+  #itemsTable tbody tr {
+    padding: 12px;
+  }
+
+  #itemsTable input,
+  #itemsTable select,
+  #itemsTable textarea {
+    font-size: 14px;
+  }
 }
