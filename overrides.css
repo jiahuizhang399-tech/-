@@ -11,21 +11,148 @@
 }
 
 .grid.two {
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
 }
 
+.app-layout {
+  display: grid;
+  gap: 12px 20px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "top"
+    "details"
+    "preview";
+  align-items: stretch;
+}
+
+.top-layout {
+  grid-area: top;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-areas:
+    "hero total"
+    "work summary";
+  gap: 12px 20px;
+  align-items: stretch;
+}
+
+.top-work {
+  grid-area: work;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.top-layout .hero {
+  grid-area: hero;
+  display: block;
+  margin-bottom: 0;
+}
+
+.grid.two {
+  grid-area: details;
+}
+
+#reportPreviewPanel {
+  grid-area: preview;
+}
+
+.summary-panel {
+  grid-area: summary;
+  padding: 12px;
+  border-radius: 22px;
+  height: 100%;
+}
+
+.top-work .upload-panel {
+  height: 100%;
+  min-height: 183px;
+}
+
+.top-work #statusBar {
+  height: 49px;
+}
+
+.top-layout .hero-card {
+  grid-area: total;
+}
+
+.summary-panel .section-head {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  align-items: start;
+}
+
+.summary-panel .section-head h2 {
+  white-space: nowrap;
+  line-height: 1.15;
+}
+
+.summary-panel .section-head .actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  justify-content: stretch;
+  gap: 6px;
+}
+
+.summary-panel .section-head .actions button {
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  padding: 5px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .summary-cards {
-  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
 
 .summary-card {
-  padding: 14px 16px;
-  min-height: 74px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: 14px 22px;
+  row-gap: 2px;
+  align-content: center;
+  height: 48px;
+  min-height: 48px;
+  max-height: 48px;
+  padding: 6px 10px;
+  overflow: hidden;
 }
 
 .summary-card strong {
-  font-size: 24px;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 18px;
+  line-height: 1;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.summary-card small {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  font-size: 10px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.summary-card span {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  overflow: hidden;
+  align-self: center;
+  font-size: 12px;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 .report-preview {
@@ -345,10 +472,38 @@ td textarea {
 
   .hero,
   .upload-panel,
-  .grid.two {
+  .grid.two,
+  .app-layout,
+  .top-layout,
+  .top-work {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 14px;
+  }
+
+  .hero > *,
+  .upload-panel > *,
+  .grid.two > *,
+  .app-layout > *,
+  .top-layout > *,
+  .top-work > * {
+    min-width: 0;
+  }
+
+  .top-layout {
+    grid-template-areas:
+      "hero"
+      "total"
+      "summary"
+      "work";
+  }
+
+  .summary-panel .section-head {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-panel .section-head .actions {
+    justify-content: start;
   }
 
   .hero-card {
@@ -356,17 +511,28 @@ td textarea {
   }
 
   .panel {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     border-radius: 18px;
     padding: 14px;
   }
 
   .section-head {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
     align-items: center;
     gap: 12px;
     flex-wrap: wrap;
   }
 
   .section-head .actions {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
     gap: 8px;
   }
 
@@ -375,6 +541,7 @@ td textarea {
   }
 
   .drop-zone {
+    box-sizing: border-box;
     min-height: 112px;
   }
 
@@ -384,6 +551,14 @@ td textarea {
 
   .project-fields {
     grid-template-columns: 1fr;
+  }
+
+  .project-fields > *,
+  .upload-panel > *,
+  .drop-zone,
+  .status-bar {
+    min-width: 0;
+    max-width: 100%;
   }
 
   .table-wrap {
@@ -401,7 +576,17 @@ td textarea {
     min-width: 0;
   }
 
+  #itemsTable th,
+  #itemsTable td,
+  #itemsTable th:nth-child(n),
+  #itemsTable td:nth-child(n) {
+    box-sizing: border-box;
+    width: 100% !important;
+    max-width: 100%;
+  }
+
   #itemsTable {
+    max-width: 100%;
     border-collapse: separate;
     border-spacing: 0;
   }
@@ -411,6 +596,8 @@ td textarea {
   }
 
   #itemsTable tbody tr {
+    box-sizing: border-box;
+    max-width: 100%;
     margin: 0 0 12px;
     padding: 14px 12px;
     border: 1px solid #dfd7ca;
@@ -520,6 +707,13 @@ td textarea {
 
   .summary-cards {
     grid-template-columns: 1fr;
+  }
+
+  .summary-card {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
   }
 
   .report-preview {

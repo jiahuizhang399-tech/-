@@ -37,6 +37,7 @@ $("#exportCsvBtn").addEventListener("click", exportCsv);
 $("#exportXlsxBtn").addEventListener("click", exportXlsx);
 $("#exportScreenshotsBtn").addEventListener("click", exportScreenshotsDoc);
 $("#exportInvoicesBtn").addEventListener("click", exportInvoicesPdf);
+$("#exportReportPreviewBtn").addEventListener("click", exportReportPreviewImage);
 $("#viewerClose").addEventListener("click", closeImageViewer);
 $("#textClose").addEventListener("click", closeTextViewer);
 imageViewer.addEventListener("click", (event) => { if (event.target === imageViewer) closeImageViewer(); });
@@ -498,7 +499,7 @@ async function updateInvoiceFile(id, file) { if (!file) return; const item = ite
 function removeInvoiceFile(id) { const item = items.find((entry) => entry.id === id); if (!item) return; revokeInvoiceUrl(item); item.invoiceFile = null; item.invoiceFileName = ""; item.invoiceFileUrl = ""; item.invoiceAmount = ""; if (item.screenshotAmount) item.amount = item.screenshotAmount; setStatus(item.screenshotAmount ? `已删除该行发票 PDF，金额已恢复为截图识别金额 ${item.screenshotAmount}。` : "已删除该行发票 PDF。"); renderAll(); }
 function updateItem(id, field, value) { const item = items.find((entry) => entry.id === id); if (!item) return; item[field] = value; if (field === "date") renderAll(); else { renderSummary(); renderReportPreview(); } }
 function getTotals() { return categories.map((category) => { const matched = items.filter((item) => item.category === category); return { category, amount: sumAmount(matched), count: matched.length }; }); }
-function renderSummary() { const totals = getTotals(); $("#totalAmount").textContent = sumAmount(items).toFixed(2); $("#summaryCards").innerHTML = totals.map((item) => `<div class="summary-card"><span>${item.category}<br><small>${item.count} 条</small></span><strong>${item.amount.toFixed(2)}</strong></div>`).join(""); }
+function renderSummary() { const totals = getTotals(); $("#totalAmount").textContent = sumAmount(items).toFixed(2); $("#summaryCards").innerHTML = totals.map((item) => `<div class="summary-card"><span>${item.category}</span><small>${item.count} 条</small><strong>${item.amount.toFixed(2)}</strong></div>`).join(""); }
 function renderReportPreview() { $("#reportPreview").innerHTML = `<div class="report-block"><h3>报销汇总</h3><table><tbody><tr><th>关联项目编号</th><td>${escapeHtml($("#projectInput").value)}</td><th>报销人</th><td>${escapeHtml($("#personInput").value)}</td></tr><tr><th>合计</th><td>${sumAmount(items).toFixed(2)}</td><th>明细条数</th><td>${items.length}</td></tr></tbody></table></div>` + categories.map(reportBlock).join(""); }
 function reportBlock(category) { const matched = sortedItems().filter((item) => item.category === category); const rows = matched.map((item) => `<tr><td>${escapeHtml(item.date)}</td><td>${escapeHtml(item.type)}</td><td>${Number(item.amount || 0).toFixed(2)}</td><td>${escapeHtml(item.description)}</td><td>${hasInvoice(item)}</td><td>${escapeHtml(invoiceSummary(item))}</td></tr>`).join(""); return `<div class="report-block"><h3>${category}合计：${sumAmount(matched).toFixed(2)}</h3>${matched.length ? `<table><thead><tr><th>时间</th><th>费用类型</th><th>金额</th><th>费用说明</th><th>是否有发票</th><th>发票</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">暂无${category}明细</div>`}</div>`; }
 function sumAmount(list) { return list.reduce((sum, item) => sum + Number(item.amount || 0), 0); }
@@ -576,7 +577,7 @@ async function exportScreenshotsDoc() {
   const rows = sortedItems().filter((item) => item.imageUrl);
   if (!rows.length) return setStatus("没有可导出的截图。");
   const cards = await Promise.all(rows.map(async (item) => {
-    const dataUrl = await imageUrlToDataUrl(item.imageUrl);
+    const dataUrl = await imageUrlToFittedDataUrl(item.imageUrl);
     return `<td class="shot-cell"><div class="shot-frame"><img src="${dataUrl}"></div></td>`;
   }));
   const pages = [];
@@ -585,7 +586,7 @@ async function exportScreenshotsDoc() {
     while (pageCards.length < 10) pageCards.push(`<td class="shot-cell empty"></td>`);
     pages.push(`<div class="page"><table class="shot-table"><tr>${pageCards.slice(0, 5).join("")}</tr><tr>${pageCards.slice(5, 10).join("")}</tr></table></div>`);
   }
-  const html = `<!doctype html><html><head><meta charset="utf-8"><style>@page Section1{size:841.95pt 595.35pt;mso-page-orientation:landscape;margin:18pt 18pt 18pt 18pt}body{margin:0}.Section1{page:Section1}.page{width:805.95pt;height:559.35pt;page-break-after:always;overflow:hidden}.shot-table{width:805.95pt;height:559.35pt;border-collapse:collapse;table-layout:fixed}.shot-cell{width:161.19pt;height:279.675pt;padding:0;border:0.75pt solid #d9d9d9;vertical-align:middle;text-align:center;overflow:hidden;page-break-inside:avoid}.shot-frame{width:100%;height:100%;overflow:hidden;text-align:center}.shot-frame img{display:block;width:100%;height:auto;border:0}.empty{border-color:#eeeeee}.page:last-child{page-break-after:auto}</style></head><body><div class="Section1">${pages.join("")}</div></body></html>`;
+  const html = `<!doctype html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><meta name="ProgId" content="Word.Document"><meta name="Generator" content="Microsoft Word"><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><style>@page{size:841.9pt 595.3pt;margin:90pt 72pt 90pt 72pt}@page WordSection1{size:841.9pt 595.3pt;mso-page-orientation:landscape;margin:90pt 72pt 90pt 72pt}body{margin:0}div.WordSection1{page:WordSection1}.page{width:697.7pt;height:405.6pt;page-break-after:always;overflow:hidden}.shot-table{width:697.7pt;height:405.6pt;border-collapse:collapse;table-layout:fixed;mso-table-lspace:0pt;mso-table-rspace:0pt}.shot-cell{width:139.5pt;height:202.8pt;padding:0;border:0.75pt solid #d9d9d9;vertical-align:middle;text-align:center;overflow:hidden;page-break-inside:avoid}.shot-frame{width:100%;height:100%;overflow:hidden;text-align:center}.shot-frame img{display:block;width:100%;height:100%;border:0}.empty{border-color:#eeeeee}.page:last-child{page-break-after:auto}</style></head><body><div class="WordSection1">${pages.join("")}</div></body></html>`;
   downloadBlob(new Blob(["\ufeff" + html], { type: "application/msword;charset=utf-8" }), "报销截图汇总.doc");
 }
 
@@ -603,9 +604,97 @@ async function exportInvoicesPdf() {
   downloadBlob(new Blob([bytes], { type: "application/pdf" }), "报销发票汇总.pdf");
 }
 
+async function exportReportPreviewImage() {
+  if (!window.html2canvas) return setStatus("预览截图组件还没加载完成，请稍后再试。");
+  const panel = $("#reportPreviewPanel");
+  const preview = $("#reportPreview");
+  if (!panel || !preview) return setStatus("没有找到报销单预览区域。");
+  setStatus("正在生成报销单预览图...");
+  const restore = prepareReportPreviewCapture(panel, preview);
+  await nextFrame();
+  try {
+    const exportScale = getReportPreviewExportScale(panel);
+    const canvas = await html2canvas(panel, {
+      backgroundColor: "#fffdf8",
+      scale: exportScale,
+      useCORS: true,
+      logging: false,
+      width: panel.scrollWidth,
+      height: panel.scrollHeight,
+      windowWidth: Math.max(document.documentElement.clientWidth, panel.scrollWidth),
+      windowHeight: Math.max(document.documentElement.clientHeight, panel.scrollHeight),
+    });
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) return setStatus("生成预览图失败，请重试。");
+    downloadBlob(blob, "报销单预览.png");
+    setStatus("已导出报销单预览图。");
+  } catch (error) {
+    console.error(error);
+    setStatus("生成预览图失败，请重试。");
+  } finally {
+    restore();
+  }
+}
+
+function getReportPreviewExportScale(panel) {
+  const width = Math.max(panel.scrollWidth, panel.getBoundingClientRect().width, 1);
+  const height = Math.max(panel.scrollHeight, panel.getBoundingClientRect().height, 1);
+  const targetWidth = 3600;
+  const maxPixels = 24000000;
+  const sharpScale = Math.max(3, targetWidth / width);
+  const safeScale = Math.sqrt(maxPixels / (width * height));
+  return Math.max(2, Math.min(4, sharpScale, safeScale));
+}
+
+function prepareReportPreviewCapture(panel, preview) {
+  const previous = { panelStyle: panel.getAttribute("style"), previewStyle: preview.getAttribute("style") };
+  const captureWidth = Math.max(panel.scrollWidth, preview.scrollWidth + 30, 900);
+  panel.style.width = `${captureWidth}px`;
+  panel.style.maxWidth = "none";
+  preview.style.overflow = "visible";
+  preview.style.width = "100%";
+  preview.style.maxWidth = "none";
+  return () => {
+    if (previous.panelStyle === null) panel.removeAttribute("style"); else panel.setAttribute("style", previous.panelStyle);
+    if (previous.previewStyle === null) preview.removeAttribute("style"); else preview.setAttribute("style", previous.previewStyle);
+  };
+}
+
+function nextFrame() {
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+}
+
 async function imageUrlToDataUrl(url) {
   const blob = await (await fetch(url)).blob();
   return new Promise((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.readAsDataURL(blob); });
+}
+
+async function imageUrlToFittedDataUrl(url) {
+  const image = await loadImage(url);
+  const width = 640;
+  const height = 930;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+  const scale = Math.min(width / image.naturalWidth, height / image.naturalHeight);
+  const drawWidth = Math.round(image.naturalWidth * scale);
+  const drawHeight = Math.round(image.naturalHeight * scale);
+  const left = Math.round((width - drawWidth) / 2);
+  const top = Math.round((height - drawHeight) / 2);
+  ctx.drawImage(image, left, top, drawWidth, drawHeight);
+  return canvas.toDataURL("image/png");
+}
+
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = url;
+  });
 }
 
 function invoiceTotalByCategory(category) {

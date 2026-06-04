@@ -4,45 +4,52 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>报销截图自动整理</title>
-  <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="overrides.css">
+  <link rel="stylesheet" href="styles.css?v=20260604">
+  <link rel="stylesheet" href="overrides.css?v=20260604-fixed-summary">
   <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script defer src="app.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script defer src="app.js?v=20260604-fixed-summary"></script>
 </head>
 <body>
   <main class="shell">
-    <section class="hero">
-      <div>
+    <section class="app-layout">
+    <section class="top-layout">
+      <section class="hero">
         <p class="eyebrow">付款截图 -> 发票匹配 -> 报销汇总</p>
         <h1>报销截图自动整理</h1>
         <p class="subhead">上传付款截图和发票 PDF，自动识别净支出金额、商品说明、发票金额，并生成可导出的报销明细。</p>
-      </div>
+      </section>
+
       <div class="hero-card"><span class="metric" id="totalAmount">0.00</span><span class="metric-label">当前合计金额</span></div>
-    </section>
 
-    <section class="panel upload-panel">
-      <div class="drop-zone" id="dropZone"><input id="fileInput" type="file" accept="image/*" multiple><div class="drop-copy"><strong>上传付款截图</strong><span>识别付款金额；有退款时自动计算净额。</span></div></div>
-      <div class="drop-zone invoice-drop-zone" id="invoiceDropZone"><input id="invoiceBatchInput" type="file" accept="application/pdf,.pdf" multiple><div class="drop-copy"><strong>上传发票 PDF</strong><span>批量识别发票价税合计并匹配明细。</span></div></div>
-      <div class="project-fields"><label>关联项目编号<input id="projectInput" placeholder="如 CSP1991"></label><label>报销人<input id="personInput" placeholder="如 张家辉"></label></div>
-    </section>
+      <div class="top-work">
+        <section class="panel upload-panel">
+          <div class="drop-zone" id="dropZone"><input id="fileInput" type="file" accept="image/*" multiple><div class="drop-copy"><strong>上传付款截图</strong><span>识别付款金额；有退款时自动计算净额。</span></div></div>
+          <div class="drop-zone invoice-drop-zone" id="invoiceDropZone"><input id="invoiceBatchInput" type="file" accept="application/pdf,.pdf" multiple><div class="drop-copy"><strong>上传发票 PDF</strong><span>批量识别发票价税合计并匹配明细。</span></div></div>
+          <div class="project-fields"><label>关联项目编号<input id="projectInput" placeholder="如 CSP1991"></label><label>报销人<input id="personInput" placeholder="如 张家辉"></label></div>
+        </section>
 
-    <section class="status" id="statusBar">等待上传截图。</section>
+        <section class="status" id="statusBar">等待上传截图。</section>
+      </div>
+
+        <section class="panel summary-panel">
+          <div class="section-head"><h2>自动汇总</h2><div class="actions"><button id="exportXlsxBtn">导出 Excel</button><button class="ghost" id="exportCsvBtn">导出 CSV</button><button class="ghost" id="exportScreenshotsBtn">导出截图</button><button class="ghost" id="exportInvoicesBtn">导出发票 PDF</button></div></div>
+          <div id="summaryCards" class="summary-cards"></div>
+        </section>
+    </section>
 
     <section class="grid two">
       <section class="panel">
         <div class="section-head"><h2>待确认明细</h2><div class="actions"><button class="ghost" id="addItemBtn">新增</button><button class="ghost" id="clearBtn">清空</button></div></div>
         <div class="table-wrap"><table id="itemsTable"><thead><tr><th>日期</th><th>类别</th><th>类型</th><th>金额</th><th>说明</th><th>是否有发票</th><th>发票</th><th>截图</th><th></th></tr></thead><tbody></tbody></table></div>
       </section>
-      <section class="panel">
-        <div class="section-head"><h2>自动汇总</h2><div class="actions"><button id="exportXlsxBtn">导出 Excel</button><button class="ghost" id="exportCsvBtn">导出 CSV</button><button class="ghost" id="exportScreenshotsBtn">导出截图</button><button class="ghost" id="exportInvoicesBtn">导出发票 PDF</button></div></div>
-        <div id="summaryCards" class="summary-cards"></div>
-      </section>
     </section>
 
-    <section class="panel"><div class="section-head"><h2>报销单预览</h2><span class="hint">顶部汇总 + 按类别分块明细</span></div><div id="reportPreview" class="report-preview"></div></section>
+    <section class="panel" id="reportPreviewPanel"><div class="section-head"><h2>报销单预览</h2><div class="actions"><button class="ghost" id="exportReportPreviewBtn">导出预览图</button></div></div><div id="reportPreview" class="report-preview"></div></section>
+    </section>
   </main>
 
   <div class="image-viewer" id="imageViewer" aria-hidden="true"><button class="viewer-close" id="viewerClose" type="button">关闭</button><img id="viewerImage" alt="截图大图预览"><div class="viewer-caption" id="viewerCaption"></div></div>
