@@ -891,6 +891,95 @@ td textarea {
   }
 }
 
+@media (max-width: 900px) {
+  #itemsTable tbody tr {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 6px 8px !important;
+    padding: 9px !important;
+  }
+
+  #itemsTable tbody td:nth-child(1),
+  #itemsTable tbody td:nth-child(3) {
+    grid-column: 1 / 3 !important;
+  }
+
+  #itemsTable tbody td:nth-child(2),
+  #itemsTable tbody td:nth-child(4) {
+    grid-column: 3 / 5 !important;
+  }
+
+  #itemsTable tbody td:nth-child(1),
+  #itemsTable tbody td:nth-child(2),
+  #itemsTable tbody td:nth-child(3),
+  #itemsTable tbody td:nth-child(4) {
+    grid-template-columns: 32px minmax(0, 1fr) !important;
+  }
+
+  #itemsTable tbody td:nth-child(5) {
+    grid-column: 1 / -1 !important;
+    grid-template-columns: 32px minmax(0, 1fr) !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) {
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+  }
+
+  #itemsTable tbody td:nth-child(6),
+  #itemsTable tbody td:nth-child(8),
+  #itemsTable tbody td:nth-child(9) {
+    grid-row: auto !important;
+  }
+
+  #itemsTable tbody td:nth-child(6) {
+    grid-column: 1 / 2 !important;
+  }
+
+  #itemsTable tbody td:nth-child(8) {
+    grid-column: 2 / 4 !important;
+  }
+
+  #itemsTable tbody td:nth-child(9) {
+    grid-column: 4 / 5 !important;
+  }
+
+  #itemsTable input,
+  #itemsTable select,
+  #itemsTable textarea {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 3px 8px !important;
+    font-size: 13px !important;
+    border-radius: 10px !important;
+  }
+
+  #itemsTable textarea {
+    height: 32px !important;
+    min-height: 32px !important;
+  }
+
+  #itemsTable .thumb-button,
+  #itemsTable .thumb-empty {
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    justify-self: center !important;
+  }
+
+  #itemsTable .delete {
+    width: 100% !important;
+    min-width: 56px !important;
+  }
+}
+
+@media (max-width: 340px) {
+  #itemsTable tbody tr {
+    grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1fr) 72px !important;
+  }
+}
+
 @media (max-width: 420px) {
   #itemsTable tbody td:nth-child(6),
   #itemsTable tbody td:nth-child(8),
@@ -1040,6 +1129,76 @@ td textarea {
   #itemsTable .thumb-button,
   #itemsTable .thumb-empty {
     height: 29px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 900px) {
+  #itemsTable tbody td:nth-child(7)::before {
+    display: none;
+  }
+
+  #itemsTable .invoice-cell {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    align-items: center;
+  }
+
+  #itemsTable .invoice-file-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+  }
+
+  #itemsTable .invoice-file {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #itemsTable .invoice-preview {
+    color: #0f5b63;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  #itemsTable .invoice-amount {
+    grid-column: 1 / -1;
+    font-size: 11px;
+    line-height: 1.2;
+  }
+
+  #itemsTable tbody td:nth-child(6)::after {
+    content: "无票";
+  }
+
+  #itemsTable tbody td:nth-child(6).invoice-yes::after {
+    content: "有票";
+    background: #e8f2ef;
+    color: #0f5b63;
+  }
+
+  #itemsTable tbody td:nth-child(6).invoice-no::after {
+    content: "无票";
+  }
+
+  #itemsTable .thumb-button,
+  #itemsTable .thumb-empty {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    border-radius: 12px;
+    justify-self: center;
+    padding: 0;
+    aspect-ratio: 1 / 1;
+  }
+
+  #itemsTable .thumb-empty {
+    display: grid;
+    place-items: center;
     font-size: 11px;
   }
 }
