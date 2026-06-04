@@ -21,8 +21,12 @@ const viewerCaption = $("#viewerCaption");
 const textViewer = $("#textViewer");
 const rawText = $("#rawText");
 
+invoiceBatchInput.multiple = true;
+invoiceBatchInput.setAttribute("multiple", "");
+invoiceBatchInput.accept = "application/pdf,.pdf,*/*";
 fileInput.addEventListener("change", (event) => handleFiles(event.target.files));
 invoiceBatchInput.addEventListener("change", (event) => handleInvoiceFiles(event.target.files));
+invoiceBatchInput.addEventListener("click", () => { invoiceBatchInput.value = ""; });
 for (const zone of [dropZone, invoiceDropZone]) {
   ["dragenter", "dragover"].forEach((eventName) => zone.addEventListener(eventName, (event) => { event.preventDefault(); zone.classList.add("dragover"); }));
   ["dragleave", "drop"].forEach((eventName) => zone.addEventListener(eventName, (event) => { event.preventDefault(); zone.classList.remove("dragover"); }));
@@ -32,7 +36,16 @@ invoiceDropZone.addEventListener("drop", (event) => handleInvoiceFiles(event.dat
 $("#projectInput").addEventListener("input", renderAll);
 $("#personInput").addEventListener("input", renderAll);
 $("#addItemBtn").addEventListener("click", addManualItem);
-$("#clearBtn").addEventListener("click", () => { items.forEach(revokeInvoiceUrl); items = []; fileInput.value = ""; invoiceBatchInput.value = ""; setStatus("已清空，等待上传截图。"); renderAll(); });
+$("#clearBtn").addEventListener("click", () => {
+  if (!items.length) return setStatus("当前没有可清空的明细。");
+  if (!confirm("确认清空所有待确认明细吗？此操作不可恢复。")) return;
+  items.forEach(revokeInvoiceUrl);
+  items = [];
+  fileInput.value = "";
+  invoiceBatchInput.value = "";
+  setStatus("已清空，等待上传截图。");
+  renderAll();
+});
 $("#exportCsvBtn").addEventListener("click", exportCsv);
 $("#exportXlsxBtn").addEventListener("click", exportXlsx);
 $("#exportScreenshotsBtn").addEventListener("click", exportScreenshotsDoc);
@@ -88,7 +101,7 @@ async function handleFiles(fileList) {
 
 async function handleInvoiceFiles(fileList) {
   const files = Array.from(fileList || []).filter((file) => file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
-  if (!files.length) return;
+  if (!files.length) return setStatus("请选择 PDF 发票文件。安卓文件选择器如不能多选，可重复点击上传发票 PDF 逐个追加。");
   if (!window.pdfjsLib) return setStatus("PDF 解析组件还没有加载完成，请稍后再上传发票。");
   window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
   let matched = 0;
@@ -494,7 +507,7 @@ function renderTable() { tableBody.innerHTML = ""; if (!items.length) { tableBod
 function bindTableEvents() { tableBody.querySelectorAll("input,select,textarea").forEach((control) => control.addEventListener("input", (event) => { updateItem(event.target.dataset.id, event.target.dataset.field, event.target.value); if (event.target.dataset.field === "amount") event.target.classList.toggle("needs-check", !event.target.value); })); tableBody.querySelectorAll("[data-delete]").forEach((button) => button.addEventListener("click", () => { const item = items.find((entry) => entry.id === button.dataset.delete); if (item) revokeInvoiceUrl(item); items = items.filter((entry) => entry.id !== button.dataset.delete); renderAll(); })); tableBody.querySelectorAll("[data-preview]").forEach((button) => button.addEventListener("click", () => openImageViewer(button.dataset.preview))); tableBody.querySelectorAll("[data-invoice-file]").forEach((input) => input.addEventListener("change", (event) => updateInvoiceFile(input.dataset.invoiceFile, event.target.files[0]))); tableBody.querySelectorAll("[data-remove-invoice]").forEach((button) => button.addEventListener("click", () => removeInvoiceFile(button.dataset.removeInvoice))); }
 function categorySelect(item) { return `<select data-id="${item.id}" data-field="category">${categories.map((c) => `<option ${item.category === c ? "selected" : ""}>${c}</option>`).join("")}</select>`; }
 function screenshotCell(item) { return item.imageUrl ? `<button class="thumb-button" type="button" data-preview="${item.id}"><img class="thumb" src="${item.imageUrl}" alt="${escapeHtml(item.fileName)}"></button>` : `<span class="thumb-empty">手动</span>`; }
-function invoiceCell(item) { return `<div class="invoice-cell"><label class="invoice-upload">上传 PDF<input type="file" accept="application/pdf,.pdf" data-invoice-file="${item.id}"></label>${item.invoiceFileUrl ? `<span class="invoice-file-row"><a class="invoice-file" href="${item.invoiceFileUrl}" target="_blank" rel="noopener">${escapeHtml(item.invoiceFileName)}</a><button class="invoice-remove" type="button" data-remove-invoice="${item.id}">删除</button></span>` : `<span class="invoice-empty">未上传 PDF</span>`}${item.invoiceAmount ? `<span class="invoice-amount">发票金额：${escapeHtml(item.invoiceAmount)}</span>` : ""}<input type="url" placeholder="发票链接" value="${escapeHtml(item.invoiceLink || "")}" data-id="${item.id}" data-field="invoiceLink"></div>`; }
+function invoiceCell(item) { return `<div class="invoice-cell"><label class="invoice-upload">PDF<input type="file" accept="application/pdf,.pdf" data-invoice-file="${item.id}"></label>${item.invoiceFileUrl ? `<span class="invoice-file-row"><a class="invoice-file" href="${item.invoiceFileUrl}" target="_blank" rel="noopener">${escapeHtml(item.invoiceFileName)}</a><button class="invoice-remove" type="button" data-remove-invoice="${item.id}">删除</button></span>` : `<span class="invoice-empty">未上传 PDF</span>`}${item.invoiceAmount ? `<span class="invoice-amount">发票金额：${escapeHtml(item.invoiceAmount)}</span>` : ""}<input type="url" placeholder="发票链接" value="${escapeHtml(item.invoiceLink || "")}" data-id="${item.id}" data-field="invoiceLink"></div>`; }
 async function updateInvoiceFile(id, file) { if (!file) return; const item = items.find((entry) => entry.id === id); if (!item) return; revokeInvoiceUrl(item); item.invoiceFile = file; item.invoiceFileName = file.name; item.invoiceFileUrl = URL.createObjectURL(file); item.invoiceAmount = window.pdfjsLib ? ((await getInvoiceAmounts(file))[0] || "") : ""; setStatus(item.invoiceAmount ? `已上传发票 PDF：${file.name}，识别金额 ${item.invoiceAmount}` : `已上传发票 PDF：${file.name}`); renderTable(); }
 function removeInvoiceFile(id) { const item = items.find((entry) => entry.id === id); if (!item) return; revokeInvoiceUrl(item); item.invoiceFile = null; item.invoiceFileName = ""; item.invoiceFileUrl = ""; item.invoiceAmount = ""; if (item.screenshotAmount) item.amount = item.screenshotAmount; setStatus(item.screenshotAmount ? `已删除该行发票 PDF，金额已恢复为截图识别金额 ${item.screenshotAmount}。` : "已删除该行发票 PDF。"); renderAll(); }
 function updateItem(id, field, value) { const item = items.find((entry) => entry.id === id); if (!item) return; item[field] = value; if (field === "date") renderAll(); else { renderSummary(); renderReportPreview(); } }
