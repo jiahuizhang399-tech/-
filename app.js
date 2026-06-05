@@ -26,8 +26,6 @@ const rawText = $("#rawText");
 
 invoiceBatchInput.multiple = true;
 invoiceBatchInput.setAttribute("multiple", "");
-invoiceBatchInput.setAttribute("webkitdirectory", "");
-invoiceBatchInput.setAttribute("directory", "");
 invoiceBatchInput.accept = "application/pdf,.pdf,*/*";
 fileInput.addEventListener("change", (event) => handleFiles(event.target.files));
 invoiceBatchInput.addEventListener("change", (event) => handleInvoiceFiles(event.target.files));
