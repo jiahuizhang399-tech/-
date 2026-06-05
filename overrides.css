@@ -6,6 +6,430 @@
   min-width: 0;
 }
 
+@media (max-width: 900px) {
+  #itemsTable tbody tr {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr) 88px 68px !important;
+    grid-template-rows: 30px 30px 32px 40px 40px !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) {
+    grid-column: 1 / 3 !important;
+    grid-row: 4 / 6 !important;
+    height: 88px !important;
+    min-height: 88px !important;
+    max-height: 88px !important;
+  }
+
+  #itemsTable tbody td:nth-child(8) {
+    grid-column: 3 / 4 !important;
+    grid-row: 4 / 6 !important;
+    position: relative !important;
+    display: block !important;
+    height: 88px !important;
+    min-height: 88px !important;
+    max-height: 88px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  #itemsTable tbody td:nth-child(6),
+  #itemsTable tbody td:nth-child(9) {
+    grid-column: 4 / 5 !important;
+    display: block !important;
+    width: 68px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+  }
+
+  #itemsTable tbody td:nth-child(6) { grid-row: 4 !important; }
+  #itemsTable tbody td:nth-child(9) { grid-row: 5 !important; }
+
+  #itemsTable tbody td:nth-child(6)::after,
+  #itemsTable tbody td:nth-child(9) .delete {
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 68px !important;
+    height: 40px !important;
+    min-width: 68px !important;
+    max-width: 68px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+    padding: 0 !important;
+    border-radius: 14px !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    line-height: 1.1 !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+  }
+
+  #itemsTable tbody td:nth-child(8) .thumb-button,
+  #itemsTable tbody td:nth-child(8) .thumb-empty {
+    position: absolute !important;
+    inset: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    min-height: 100% !important;
+    max-height: 100% !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  #itemsTable tbody td:nth-child(8) .thumb {
+    position: absolute !important;
+    inset: 0 !important;
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 100% !important;
+    min-height: 100% !important;
+    object-fit: cover !important;
+    object-position: center !important;
+  }
+
+  #itemsTable tbody td:nth-child(8) .thumb-button > img.thumb {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 100% !important;
+    min-height: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    object-fit: cover !important;
+  }
+}
+
+@media (max-width: 900px) {
+  body #itemsTable tbody tr {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    grid-template-rows: 30px 30px 32px 38px 38px !important;
+    gap: 5px 8px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(1),
+  body #itemsTable tbody td:nth-child(3) {
+    grid-column: 1 / 3 !important;
+  }
+
+  body #itemsTable tbody td:nth-child(2),
+  body #itemsTable tbody td:nth-child(4) {
+    grid-column: 3 / 5 !important;
+  }
+
+  body #itemsTable tbody td:nth-child(1),
+  body #itemsTable tbody td:nth-child(2),
+  body #itemsTable tbody td:nth-child(3),
+  body #itemsTable tbody td:nth-child(4),
+  body #itemsTable tbody td:nth-child(5) {
+    grid-template-columns: 40px minmax(0, 1fr) !important;
+  }
+
+  body #itemsTable tbody td:nth-child(5) {
+    grid-column: 1 / 5 !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) {
+    grid-column: 1 / 3 !important;
+    grid-row: 4 / 6 !important;
+  }
+
+  body #itemsTable tbody td:nth-child(8) {
+    grid-column: 3 / 4 !important;
+    grid-row: 4 / 6 !important;
+  }
+
+  body #itemsTable tbody td:nth-child(6),
+  body #itemsTable tbody td:nth-child(9) {
+    grid-column: 4 / 5 !important;
+  }
+
+  body #itemsTable tbody td:nth-child(6) { grid-row: 4 !important; }
+  body #itemsTable tbody td:nth-child(9) { grid-row: 5 !important; }
+
+  body #itemsTable tbody td:nth-child(6),
+  body #itemsTable tbody td:nth-child(9),
+  body #itemsTable tbody td:nth-child(6)::after,
+  body #itemsTable tbody td:nth-child(9) > .delete {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+}
+
+@media (max-width: 900px) {
+  body #itemsTable tbody tr {
+    grid-template-rows: 30px 30px 32px 38px 38px !important;
+    gap: 5px 8px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7),
+  body #itemsTable tbody td:nth-child(8) {
+    height: 80px !important;
+    min-height: 80px !important;
+    max-height: 80px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(6),
+  body #itemsTable tbody td:nth-child(9),
+  body #itemsTable tbody td:nth-child(6)::after,
+  body #itemsTable tbody td:nth-child(9) > .delete {
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice {
+    position: relative !important;
+    display: block !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice .invoice-upload {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 58px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice .invoice-remove {
+    position: absolute !important;
+    right: 0 !important;
+    top: 0 !important;
+    width: auto !important;
+    min-width: 58px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 0 8px !important;
+    line-height: 30px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice .invoice-file {
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 36px !important;
+    width: auto !important;
+    max-width: none !important;
+    height: 16px !important;
+    line-height: 16px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice .invoice-amount {
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 56px !important;
+    width: auto !important;
+    height: 16px !important;
+    line-height: 16px !important;
+    margin: 0 !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.no-invoice {
+    display: grid !important;
+    grid-template-columns: 58px minmax(0, 1fr) !important;
+    grid-template-rows: 30px 1fr !important;
+    gap: 6px !important;
+    align-content: center !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.no-invoice .invoice-upload {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    height: 30px !important;
+    min-height: 30px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.no-invoice .invoice-empty {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    align-self: start !important;
+  }
+}
+
+@media (max-width: 900px) {
+  body #itemsTable tbody tr {
+    grid-template-columns: minmax(0, 1fr) 88px 68px !important;
+    grid-template-rows: 30px 30px 32px 40px 40px !important;
+    gap: 6px 8px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(1),
+  body #itemsTable tbody td:nth-child(3) {
+    grid-column: 1 / 2 !important;
+  }
+
+  body #itemsTable tbody td:nth-child(2),
+  body #itemsTable tbody td:nth-child(4) {
+    grid-column: 2 / 4 !important;
+  }
+
+  body #itemsTable tbody td:nth-child(5) {
+    grid-column: 1 / 4 !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) {
+    grid-column: 1 / 2 !important;
+    grid-row: 4 / 6 !important;
+    height: 88px !important;
+    min-height: 88px !important;
+    max-height: 88px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(8) {
+    grid-column: 2 / 3 !important;
+    grid-row: 4 / 6 !important;
+    height: 88px !important;
+    min-height: 88px !important;
+    max-height: 88px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(6),
+  body #itemsTable tbody td:nth-child(9) {
+    grid-column: 3 / 4 !important;
+    width: 68px !important;
+    height: 40px !important;
+    min-width: 68px !important;
+    max-width: 68px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(6) { grid-row: 4 !important; }
+  body #itemsTable tbody td:nth-child(9) { grid-row: 5 !important; }
+
+  body #itemsTable tbody td:nth-child(6)::after,
+  body #itemsTable tbody td:nth-child(9) > .delete {
+    width: 68px !important;
+    height: 40px !important;
+    min-width: 68px !important;
+    max-width: 68px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  #itemsTable tbody tr {
+    grid-template-columns: minmax(0, 1fr) 82px 68px !important;
+    grid-template-rows: 30px 30px 32px 40px 40px !important;
+    gap: 6px 8px !important;
+  }
+
+  #itemsTable tbody td:nth-child(1),
+  #itemsTable tbody td:nth-child(3) {
+    grid-column: 1 / 2 !important;
+  }
+
+  #itemsTable tbody td:nth-child(2),
+  #itemsTable tbody td:nth-child(4) {
+    grid-column: 2 / 4 !important;
+  }
+
+  #itemsTable tbody td:nth-child(5) {
+    grid-column: 1 / 4 !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) {
+    grid-column: 1 / 2 !important;
+    grid-row: 4 / 6 !important;
+    height: 88px !important;
+    min-height: 88px !important;
+    max-height: 88px !important;
+    padding: 8px !important;
+  }
+
+  #itemsTable tbody td:nth-child(8) {
+    grid-column: 2 / 3 !important;
+    grid-row: 4 / 6 !important;
+    height: 88px !important;
+    min-height: 88px !important;
+    max-height: 88px !important;
+  }
+
+  #itemsTable tbody td:nth-child(6),
+  #itemsTable tbody td:nth-child(9) {
+    grid-column: 3 / 4 !important;
+    width: 68px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+  }
+
+  #itemsTable tbody td:nth-child(6) { grid-row: 4 !important; }
+  #itemsTable tbody td:nth-child(9) { grid-row: 5 !important; }
+
+  #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice {
+    display: grid !important;
+    grid-template-columns: 58px minmax(0, 1fr) auto !important;
+    grid-template-rows: 32px 18px 18px !important;
+    gap: 5px 7px !important;
+    align-content: center !important;
+    height: 100% !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-upload {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-remove {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    width: auto !important;
+    min-width: 58px !important;
+    height: 30px !important;
+    padding: 0 8px !important;
+    justify-self: end !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-file {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-amount {
+    grid-column: 1 / -1 !important;
+    grid-row: 3 !important;
+  }
+}
+
+@media (max-width: 340px) {
+  #itemsTable tbody tr {
+    grid-template-columns: minmax(0, 1fr) 70px 62px !important;
+  }
+
+  body #itemsTable tbody tr {
+    grid-template-columns: minmax(0, 1fr) 70px 62px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(8) {
+    width: 70px !important;
+  }
+
+  #itemsTable tbody td:nth-child(6),
+  #itemsTable tbody td:nth-child(9),
+  #itemsTable tbody td:nth-child(6)::after,
+  #itemsTable tbody td:nth-child(9) > .delete {
+    width: 62px !important;
+    min-width: 62px !important;
+    max-width: 62px !important;
+  }
+}
+
 .shell {
   width: min(1440px, calc(100% - 32px));
 }
@@ -902,6 +1326,647 @@ td textarea {
   }
 }
 
+button,
+.invoice-upload,
+.thumb-button,
+.thumb-empty,
+#itemsTable tbody td:nth-child(6)::after {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+button,
+.invoice-upload,
+.thumb-button,
+.thumb-empty {
+  line-height: 1.1;
+}
+
+@media (max-width: 900px) {
+  button,
+  .invoice-upload,
+  .thumb-button,
+  .thumb-empty,
+  #itemsTable .delete,
+  #itemsTable .invoice-remove,
+  #itemsTable .invoice-preview,
+  #itemsTable tbody td:nth-child(6)::after {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+
+  #itemsTable .invoice-file {
+    display: block !important;
+    text-align: left !important;
+  }
+}
+
+@media (max-width: 900px) {
+  #itemsTable .invoice-cell {
+    display: grid !important;
+    grid-template-columns: 58px minmax(0, 1fr) !important;
+    grid-template-rows: 34px 18px 18px 30px !important;
+    gap: 4px 7px !important;
+  }
+
+  #itemsTable .invoice-upload {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+
+  #itemsTable .invoice-file {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  #itemsTable .invoice-amount {
+    grid-column: 1 / -1 !important;
+    grid-row: 3 !important;
+  }
+
+  #itemsTable .invoice-actions {
+    grid-column: 1 / -1 !important;
+    grid-row: 4 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+  }
+
+  #itemsTable .invoice-preview {
+    padding: 0 !important;
+  }
+
+  #itemsTable .invoice-remove {
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0 10px !important;
+  }
+
+  #itemsTable .invoice-empty {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    padding-left: 0 !important;
+  }
+}
+
+@media (max-width: 900px) {
+  #itemsTable tbody td:nth-child(7) .invoice-cell {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    gap: 6px !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-upload {
+    flex: 0 0 auto !important;
+    width: 58px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-file {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 2px !important;
+    overflow: hidden !important;
+    color: #0f5b63 !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    text-align: left !important;
+    text-decoration: underline !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-amount {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 2px !important;
+    color: #69757a !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-actions {
+    display: flex !important;
+    width: 100% !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    margin-top: auto !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-preview {
+    margin: 0 !important;
+    padding: 0 2px !important;
+    color: #0f5b63 !important;
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    line-height: 28px !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-remove {
+    height: 28px !important;
+    min-height: 28px !important;
+    margin: 0 !important;
+    padding: 0 10px !important;
+    font-size: 11px !important;
+    line-height: 28px !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-empty {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 2px !important;
+    color: #69757a !important;
+    font-size: 13px !important;
+    line-height: 1.2 !important;
+  }
+}
+
+@media (max-width: 900px) {
+  #itemsTable tbody tr {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(86px, .95fr) minmax(68px, .78fr) !important;
+    grid-template-rows: auto auto auto auto auto !important;
+  }
+
+  #itemsTable tbody td:nth-child(7),
+  #itemsTable tbody td:nth-child(8) {
+    min-height: 82px !important;
+  }
+
+  #itemsTable tbody td:nth-child(6),
+  #itemsTable tbody td:nth-child(9) {
+    height: 40px !important;
+    min-height: 40px !important;
+  }
+
+  #itemsTable tbody td:nth-child(6)::after,
+  #itemsTable .delete {
+    height: 40px !important;
+    min-height: 40px !important;
+    border: 1px solid #dfd7ca !important;
+    border-radius: 14px !important;
+    background: rgba(248, 244, 236, .96) !important;
+    color: #69757a !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    line-height: 1.1 !important;
+  }
+
+  #itemsTable tbody td:nth-child(6).invoice-yes::after {
+    border-color: #d9ebe7 !important;
+    background: #e8f2ef !important;
+    color: #0f5b63 !important;
+  }
+
+  #itemsTable .delete {
+    border-color: #ffd5cf !important;
+    background: #fff4f2 !important;
+    color: #b42318 !important;
+  }
+
+  #itemsTable tbody td:nth-child(8) {
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  #itemsTable .thumb-button,
+  #itemsTable .thumb-empty {
+    display: grid !important;
+    place-items: center !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 82px !important;
+    max-height: none !important;
+    border-radius: 14px !important;
+    white-space: nowrap !important;
+    writing-mode: horizontal-tb !important;
+  }
+
+  #itemsTable .thumb {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-cell {
+    gap: 4px !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-upload {
+    width: 58px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  #itemsTable tbody tr {
+    grid-template-rows: 30px 30px 32px 38px 38px !important;
+    align-items: stretch !important;
+  }
+
+  #itemsTable tbody td:nth-child(7),
+  #itemsTable tbody td:nth-child(8) {
+    grid-row: 4 / 6 !important;
+    height: 82px !important;
+    min-height: 82px !important;
+    max-height: 82px !important;
+  }
+
+  #itemsTable tbody td:nth-child(6),
+  #itemsTable tbody td:nth-child(9) {
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+  }
+
+  #itemsTable tbody td:nth-child(6)::after,
+  #itemsTable .delete {
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+  }
+
+  #itemsTable .thumb-button,
+  #itemsTable .thumb-empty {
+    height: 82px !important;
+    min-height: 82px !important;
+    max-height: 82px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  #itemsTable tbody tr:has(.has-invoice) {
+    grid-template-rows: 30px 30px 32px 38px 38px !important;
+  }
+
+  #itemsTable tbody tr:has(.no-invoice) {
+    grid-template-rows: 30px 30px 32px 38px 38px !important;
+  }
+
+  #itemsTable tbody tr:has(.has-invoice) td:nth-child(7),
+  #itemsTable tbody tr:has(.has-invoice) td:nth-child(8),
+  #itemsTable tbody tr:has(.has-invoice) .thumb-button,
+  #itemsTable tbody tr:has(.has-invoice) .thumb-empty {
+    height: 80px !important;
+    min-height: 80px !important;
+    max-height: 80px !important;
+  }
+
+  #itemsTable tbody tr:has(.no-invoice) td:nth-child(7),
+  #itemsTable tbody tr:has(.no-invoice) td:nth-child(8),
+  #itemsTable tbody tr:has(.no-invoice) .thumb-button,
+  #itemsTable tbody tr:has(.no-invoice) .thumb-empty {
+    height: 82px !important;
+    min-height: 82px !important;
+    max-height: 82px !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice {
+    gap: 5px !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-cell.no-invoice {
+    justify-content: flex-start !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-file,
+  #itemsTable tbody td:nth-child(7) .invoice-amount {
+    flex: 0 0 auto !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-actions {
+    flex: 0 0 auto !important;
+    margin-top: 0 !important;
+  }
+}
+
+@media (max-width: 900px) {
+  #itemsTable tbody td:nth-child(8) {
+    position: relative !important;
+    display: block !important;
+    padding: 0 !important;
+  }
+
+  #itemsTable tbody td:nth-child(8) .thumb-button,
+  #itemsTable tbody td:nth-child(8) .thumb-empty {
+    position: absolute !important;
+    inset: 0 !important;
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 100% !important;
+    min-height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    border-radius: 14px !important;
+  }
+
+  #itemsTable tbody td:nth-child(8) .thumb-empty {
+    display: grid !important;
+    place-items: center !important;
+    font-size: 13px !important;
+    writing-mode: horizontal-tb !important;
+  }
+
+  #itemsTable tbody td:nth-child(8) .thumb {
+    position: absolute !important;
+    inset: 0 !important;
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 100% !important;
+    min-height: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    object-fit: cover !important;
+    object-position: center !important;
+  }
+
+  #itemsTable tbody td:nth-child(6),
+  #itemsTable tbody td:nth-child(9) {
+    display: block !important;
+  }
+
+  #itemsTable tbody td:nth-child(6)::after,
+  #itemsTable tbody td:nth-child(9) .delete {
+    display: grid !important;
+    place-items: center !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+    padding: 0 4px !important;
+    border-radius: 14px !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    line-height: 1.1 !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+  }
+}
+
+@media (max-width: 900px) {
+  #itemsTable tbody td:nth-child(7) {
+    text-align: left !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice,
+  #itemsTable tbody td:nth-child(7) .invoice-cell.no-invoice {
+    align-content: center !important;
+    justify-content: stretch !important;
+    justify-items: start !important;
+    text-align: left !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-upload,
+  #itemsTable tbody td:nth-child(7) .invoice-file,
+  #itemsTable tbody td:nth-child(7) .invoice-amount,
+  #itemsTable tbody td:nth-child(7) .invoice-empty,
+  #itemsTable tbody td:nth-child(7) .invoice-remove {
+    align-self: center !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-file,
+  #itemsTable tbody td:nth-child(7) .invoice-amount,
+  #itemsTable tbody td:nth-child(7) .invoice-empty {
+    justify-self: stretch !important;
+    text-align: left !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-remove {
+    justify-self: end !important;
+  }
+
+  #itemsTable tbody td:nth-child(6)::after,
+  #itemsTable tbody td:nth-child(9) .delete {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+}
+
+@media (max-width: 900px) {
+  #itemsTable tbody td:nth-child(4) input[type="number"] {
+    text-align: left !important;
+  }
+
+  #itemsTable tbody td:nth-child(5) textarea {
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+    padding-top: 7px !important;
+    padding-bottom: 7px !important;
+    line-height: 18px !important;
+    text-align: left !important;
+    overflow: hidden !important;
+    resize: none !important;
+  }
+}
+
+@media (max-width: 900px) {
+  #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice {
+    display: grid !important;
+    grid-template-columns: 58px minmax(0, 1fr) !important;
+    grid-template-rows: 32px 18px 18px !important;
+    gap: 6px 8px !important;
+    height: 100% !important;
+    align-content: start !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-cell.no-invoice {
+    display: grid !important;
+    grid-template-columns: 58px minmax(0, 1fr) !important;
+    grid-template-rows: 32px auto !important;
+    gap: 6px 8px !important;
+    height: 100% !important;
+    align-content: start !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-upload {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    width: 58px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-remove {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    justify-self: end !important;
+    align-self: center !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 0 10px !important;
+    line-height: 30px !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-file {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    width: 100% !important;
+    line-height: 18px !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-amount {
+    grid-column: 1 / -1 !important;
+    grid-row: 3 !important;
+    line-height: 18px !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) .invoice-empty {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    padding: 0 2px !important;
+  }
+
+  #itemsTable tbody td:nth-child(6)::after,
+  #itemsTable tbody td:nth-child(9) .delete {
+    width: 100% !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+    padding: 0 !important;
+    border-radius: 14px !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    line-height: 38px !important;
+    text-align: center !important;
+  }
+}
+
+@media (max-width: 340px) {
+  #itemsTable tbody tr {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.05fr) 76px 62px !important;
+  }
+
+  #itemsTable tbody td:nth-child(7),
+  #itemsTable tbody td:nth-child(8),
+  #itemsTable .thumb-button,
+  #itemsTable .thumb-empty {
+    min-height: 76px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  #itemsTable tbody tr {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr) 88px 68px !important;
+    grid-template-rows: 30px 30px 32px 40px 40px !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) {
+    grid-column: 1 / 3 !important;
+    grid-row: 4 / 6 !important;
+    height: 88px !important;
+    min-height: 88px !important;
+    max-height: 88px !important;
+  }
+
+  #itemsTable tbody td:nth-child(8) {
+    grid-column: 3 / 4 !important;
+    grid-row: 4 / 6 !important;
+    position: relative !important;
+    display: block !important;
+    height: 88px !important;
+    min-height: 88px !important;
+    max-height: 88px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  #itemsTable tbody td:nth-child(6),
+  #itemsTable tbody td:nth-child(9) {
+    grid-column: 4 / 5 !important;
+    display: block !important;
+    width: 68px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+  }
+
+  #itemsTable tbody td:nth-child(6) { grid-row: 4 !important; }
+  #itemsTable tbody td:nth-child(9) { grid-row: 5 !important; }
+
+  #itemsTable tbody td:nth-child(6)::after,
+  #itemsTable tbody td:nth-child(9) .delete {
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 68px !important;
+    height: 40px !important;
+    min-width: 68px !important;
+    max-width: 68px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+    padding: 0 !important;
+    border-radius: 14px !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    line-height: 1.1 !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+  }
+
+  #itemsTable tbody td:nth-child(8) .thumb-button,
+  #itemsTable tbody td:nth-child(8) .thumb-empty {
+    position: absolute !important;
+    inset: 0 !important;
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    min-height: 100% !important;
+    max-height: 100% !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  #itemsTable tbody td:nth-child(8) .thumb-button > img.thumb,
+  #itemsTable tbody td:nth-child(8) img.thumb {
+    position: absolute !important;
+    inset: 0 !important;
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 100% !important;
+    min-height: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    object-fit: cover !important;
+    object-position: center !important;
+  }
+}
+
 @media (max-width: 900px) {
   #itemsTable tbody tr {
     grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
@@ -988,6 +2053,118 @@ td textarea {
 @media (max-width: 340px) {
   #itemsTable tbody tr {
     grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1fr) 72px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  #itemsTable tbody td:nth-child(7) {
+    display: block !important;
+  }
+
+  #itemsTable tbody tr {
+    grid-template-rows: auto auto auto 58px 58px !important;
+  }
+
+  #itemsTable tbody td:nth-child(6),
+  #itemsTable tbody td:nth-child(9) {
+    width: 100% !important;
+    height: 58px !important;
+    min-height: 58px !important;
+    align-self: stretch !important;
+  }
+
+  #itemsTable tbody td:nth-child(6)::after,
+  #itemsTable .delete {
+    width: 100% !important;
+    height: 58px !important;
+    min-height: 58px !important;
+    display: grid !important;
+    place-items: center !important;
+    padding: 0 !important;
+    border-radius: 14px !important;
+    font-size: 13px !important;
+    line-height: 1.1 !important;
+    text-align: center !important;
+  }
+
+  #itemsTable .invoice-cell {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    grid-template-rows: 34px 18px 18px 30px !important;
+    gap: 4px 6px !important;
+    align-content: start !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  #itemsTable .invoice-upload {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    width: 58px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+  }
+
+  #itemsTable .invoice-file-row {
+    display: contents !important;
+  }
+
+  #itemsTable .invoice-preview {
+    grid-column: 1 !important;
+    grid-row: 4 !important;
+    align-self: center !important;
+    justify-self: start !important;
+    padding-left: 2px !important;
+  }
+
+  #itemsTable .invoice-remove {
+    grid-column: 2 !important;
+    grid-row: 4 !important;
+    align-self: center !important;
+    justify-self: end !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 0 8px !important;
+  }
+
+  #itemsTable .invoice-file {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 2px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    text-align: left !important;
+    line-height: 18px !important;
+  }
+
+  #itemsTable .invoice-amount {
+    grid-column: 1 / -1 !important;
+    grid-row: 3 !important;
+    margin: 0 2px !important;
+    line-height: 18px !important;
+  }
+
+  #itemsTable .invoice-empty {
+    grid-column: 1 / -1 !important;
+    grid-row: 1 !important;
+    align-self: center !important;
+    padding-left: 66px !important;
+  }
+
+  #itemsTable .thumb-button,
+  #itemsTable .thumb-empty {
+    min-height: 116px !important;
+    max-height: none !important;
+  }
+
+  #itemsTable tbody td:nth-child(6),
+  #itemsTable tbody td:nth-child(9) {
+    display: grid !important;
+    place-items: stretch !important;
   }
 }
 
@@ -1211,5 +2388,436 @@ td textarea {
     display: grid;
     place-items: center;
     font-size: 11px;
+  }
+}
+
+@media (max-width: 900px) {
+  #itemsTable tbody tr {
+    grid-template-rows: auto auto auto auto auto !important;
+    gap: 6px 8px !important;
+    padding: 10px !important;
+  }
+
+  #itemsTable tbody td:nth-child(5) {
+    grid-row: 3 !important;
+  }
+
+  #itemsTable tbody td:nth-child(6) {
+    grid-column: 1 / 2 !important;
+    grid-row: 4 !important;
+    align-self: center !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) {
+    grid-column: 2 / 5 !important;
+    grid-row: 4 !important;
+    align-self: center !important;
+  }
+
+  #itemsTable tbody td:nth-child(8) {
+    grid-column: 1 / 3 !important;
+    grid-row: 5 !important;
+    justify-self: stretch !important;
+  }
+
+  #itemsTable tbody td:nth-child(9) {
+    grid-column: 3 / 5 !important;
+    grid-row: 5 !important;
+    justify-self: stretch !important;
+  }
+
+  #itemsTable tbody td:nth-child(6),
+  #itemsTable tbody td:nth-child(7),
+  #itemsTable tbody td:nth-child(8),
+  #itemsTable tbody td:nth-child(9) {
+    min-height: 0 !important;
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+
+  #itemsTable tbody td:nth-child(6)::before,
+  #itemsTable tbody td:nth-child(7)::before,
+  #itemsTable tbody td:nth-child(8)::before,
+  #itemsTable tbody td:nth-child(9)::before {
+    display: none !important;
+  }
+
+  #itemsTable tbody td:nth-child(6)::after {
+    width: 100% !important;
+    height: 34px !important;
+    min-width: 0 !important;
+    font-size: 12px !important;
+  }
+
+  #itemsTable .invoice-cell {
+    display: grid !important;
+    grid-template-columns: 46px minmax(0, 1fr) !important;
+    gap: 4px 7px !important;
+    align-items: center !important;
+  }
+
+  #itemsTable .invoice-upload {
+    grid-column: 1 !important;
+    width: 46px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    display: grid !important;
+    place-items: center !important;
+    padding: 0 !important;
+  }
+
+  #itemsTable .invoice-empty,
+  #itemsTable .invoice-file-row {
+    grid-column: 2 !important;
+  }
+
+  #itemsTable .invoice-file-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto auto !important;
+    gap: 5px !important;
+    align-items: center !important;
+  }
+
+  #itemsTable .invoice-file,
+  #itemsTable .invoice-preview {
+    appearance: none;
+    -webkit-appearance: none;
+    border: 0;
+    background: transparent;
+    color: #0f5b63;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: left;
+  }
+
+  #itemsTable .invoice-file {
+    min-width: 0;
+    overflow: hidden;
+    padding: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-decoration: underline;
+  }
+
+  #itemsTable .invoice-preview {
+    padding: 0 2px;
+    white-space: nowrap;
+  }
+
+  #itemsTable .invoice-remove {
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 3px 8px !important;
+    border-radius: 999px !important;
+    background: #fffdf8 !important;
+    border-color: #f4b8af !important;
+    color: #b42318 !important;
+    font-size: 11px !important;
+  }
+
+  #itemsTable .invoice-amount {
+    grid-column: 2 !important;
+    margin-top: -1px !important;
+    font-size: 11px !important;
+    line-height: 1.15 !important;
+  }
+
+  #itemsTable .thumb-button,
+  #itemsTable .thumb-empty,
+  #itemsTable .delete {
+    width: 100% !important;
+    height: 36px !important;
+    min-width: 0 !important;
+    min-height: 36px !important;
+    justify-self: stretch !important;
+  }
+}
+
+@media (max-width: 900px) {
+  #itemsTable tbody tr {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.25fr) minmax(82px, .95fr) minmax(68px, .8fr) !important;
+    grid-template-rows: auto auto auto minmax(76px, auto) auto !important;
+    align-items: stretch !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) {
+    grid-column: 1 / 3 !important;
+    grid-row: 4 / 6 !important;
+    align-self: stretch !important;
+    display: block !important;
+    padding: 8px !important;
+    border: 1px solid rgba(15, 91, 99, .14) !important;
+    border-radius: 14px !important;
+    background: rgba(232, 242, 239, .35) !important;
+  }
+
+  #itemsTable tbody td:nth-child(8) {
+    grid-column: 3 / 4 !important;
+    grid-row: 4 / 6 !important;
+    display: grid !important;
+    place-items: center !important;
+    padding: 8px !important;
+    border: 1px solid #dfd7ca !important;
+    border-radius: 14px !important;
+    background: rgba(255, 253, 248, .75) !important;
+  }
+
+  #itemsTable tbody td:nth-child(6) {
+    grid-column: 4 / 5 !important;
+    grid-row: 4 !important;
+    align-self: stretch !important;
+    display: grid !important;
+  }
+
+  #itemsTable tbody td:nth-child(9) {
+    grid-column: 4 / 5 !important;
+    grid-row: 5 !important;
+    align-self: stretch !important;
+    display: grid !important;
+  }
+
+  #itemsTable tbody td:nth-child(6)::after {
+    height: 100% !important;
+    min-height: 34px !important;
+    border-radius: 12px !important;
+  }
+
+  #itemsTable .invoice-cell {
+    grid-template-columns: 46px minmax(0, 1fr) !important;
+    grid-template-rows: auto auto !important;
+    align-content: start !important;
+    height: 100% !important;
+    min-height: 100% !important;
+  }
+
+  #itemsTable .invoice-file-row {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-rows: auto auto !important;
+    align-self: start !important;
+    row-gap: 4px !important;
+  }
+
+  #itemsTable .invoice-file-row .invoice-file {
+    grid-column: 1 / -1 !important;
+  }
+
+  #itemsTable .invoice-file-row .invoice-preview {
+    grid-column: 1 !important;
+    justify-self: start !important;
+  }
+
+  #itemsTable .invoice-file-row .invoice-remove {
+    grid-column: 2 !important;
+    justify-self: end !important;
+  }
+
+  #itemsTable .invoice-empty {
+    align-self: center !important;
+    font-size: 13px !important;
+  }
+
+  #itemsTable .invoice-amount {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    margin: 3px 0 0 2px !important;
+  }
+
+  #itemsTable .thumb-button,
+  #itemsTable .thumb-empty {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 58px !important;
+    max-height: 78px !important;
+    border-radius: 12px !important;
+  }
+
+  #itemsTable .thumb {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+  }
+
+  #itemsTable .delete {
+    height: 36px !important;
+    min-height: 36px !important;
+    align-self: end !important;
+    border-radius: 999px !important;
+    background: #fff1ee !important;
+    border-color: #ffb8af !important;
+    color: #9f1c12 !important;
+    font-weight: 800 !important;
+  }
+}
+
+@media (max-width: 340px) {
+  #itemsTable tbody tr {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.1fr) 66px 60px !important;
+  }
+
+  #itemsTable tbody td:nth-child(7) {
+    padding: 7px !important;
+  }
+
+  #itemsTable .invoice-cell {
+    grid-template-columns: 42px minmax(0, 1fr) !important;
+  }
+
+  #itemsTable .invoice-upload {
+    width: 48px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+  }
+
+  #itemsTable .invoice-remove {
+    width: 48px !important;
+    min-width: 48px !important;
+    max-width: 48px !important;
+  }
+
+  #itemsTable .invoice-preview,
+  #itemsTable .invoice-remove,
+  #itemsTable .invoice-file,
+  #itemsTable .invoice-empty,
+  #itemsTable .invoice-amount {
+    font-size: 10px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  #itemsTable tbody td:nth-child(8) {
+    display: block !important;
+    position: relative !important;
+    box-sizing: border-box !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  #itemsTable tbody td:nth-child(8) > .thumb-button,
+  #itemsTable tbody td:nth-child(8) > .thumb-empty {
+    position: absolute !important;
+    inset: 0 !important;
+    box-sizing: border-box !important;
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    min-height: 100% !important;
+    max-height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  #itemsTable tbody td:nth-child(8) > .thumb-button > img.thumb {
+    position: absolute !important;
+    inset: 0 !important;
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 100% !important;
+    min-height: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    object-fit: cover !important;
+    object-position: center !important;
+  }
+
+  #itemsTable tbody td:nth-child(6),
+  #itemsTable tbody td:nth-child(9),
+  #itemsTable tbody td:nth-child(6)::after,
+  #itemsTable tbody td:nth-child(9) > .delete {
+    box-sizing: border-box !important;
+    width: 68px !important;
+    height: 40px !important;
+    min-width: 68px !important;
+    max-width: 68px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  body #itemsTable tbody tr {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    grid-template-rows: 30px 30px 32px 38px 38px !important;
+    gap: 5px 8px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(1),
+  body #itemsTable tbody td:nth-child(3) {
+    grid-column: 1 / 3 !important;
+  }
+
+  body #itemsTable tbody td:nth-child(2),
+  body #itemsTable tbody td:nth-child(4) {
+    grid-column: 3 / 5 !important;
+  }
+
+  body #itemsTable tbody td:nth-child(5) {
+    grid-column: 1 / 5 !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) {
+    grid-column: 1 / 3 !important;
+    grid-row: 4 / 6 !important;
+    height: 80px !important;
+    min-height: 80px !important;
+    max-height: 80px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(8) {
+    grid-column: 3 / 4 !important;
+    grid-row: 4 / 6 !important;
+    height: 80px !important;
+    min-height: 80px !important;
+    max-height: 80px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(6),
+  body #itemsTable tbody td:nth-child(9) {
+    grid-column: 4 / 5 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(6) { grid-row: 4 !important; }
+  body #itemsTable tbody td:nth-child(9) { grid-row: 5 !important; }
+
+  body #itemsTable tbody td:nth-child(6)::after,
+  body #itemsTable tbody td:nth-child(9) > .delete {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+  }
+}
+
+@media (max-width: 340px) {
+  body #itemsTable tbody td:nth-child(7) .invoice-upload,
+  body #itemsTable tbody td:nth-child(7) .invoice-remove,
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice .invoice-upload,
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice .invoice-remove {
+    width: 48px !important;
+    min-width: 48px !important;
+    max-width: 48px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
+    padding: 0 !important;
+    font-size: 10px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-remove {
+    right: 0 !important;
   }
 }
