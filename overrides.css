@@ -2821,3 +2821,47 @@ button,
     right: 0 !important;
   }
 }
+
+@media (max-width: 900px) {
+  body .report-preview { gap: 10px !important; }
+
+  body .report-block { border-radius: 12px !important; }
+
+  body .report-block h3 {
+    padding: 10px 12px !important;
+    font-size: 15px !important;
+  }
+
+  body .report-preview .report-block,
+  body .report-preview .report-block table {
+    width: 520px !important;
+    min-width: 520px !important;
+    max-width: 520px !important;
+  }
+
+  body .report-block th,
+  body .report-block td {
+    height: 30px !important;
+    padding: 5px 6px !important;
+    font-size: 11px !important;
+    line-height: 1.2 !important;
+  }
+
+  body .report-block table th:nth-child(1),
+  body .report-block table td:nth-child(1) { width: 76px !important; }
+
+  body .report-block table th:nth-child(2),
+  body .report-block table td:nth-child(2) { width: 76px !important; }
+
+  body .report-block table th:nth-child(3),
+  body .report-block table td:nth-child(3) { width: 56px !important; }
+
+  body .report-block table th:nth-child(4),
+  body .report-block table td:nth-child(4) { width: 130px !important; }
+
+  body .report-block table th:nth-child(5),
+  body .report-block table td:nth-child(5) { width: 62px !important; }
+
+  body .report-block table th:nth-child(6),
+  body .report-block table td:nth-child(6) { width: 114px !important; }
+}
