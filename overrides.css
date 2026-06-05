@@ -501,8 +501,8 @@ td textarea {
     grid-template-areas:
       "hero"
       "total"
-      "summary"
-      "work";
+      "work"
+      "summary";
   }
 
   .summary-panel .section-head {
@@ -541,6 +541,17 @@ td textarea {
     max-width: 100%;
     flex-wrap: wrap;
     gap: 8px;
+  }
+
+  .grid.two .section-head .actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .grid.two .section-head .actions button {
+    width: 100%;
+    min-width: 0;
   }
 
   .section-head h2 {
