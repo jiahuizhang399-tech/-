@@ -710,7 +710,7 @@ async function exportScreenshotsDocx(rows) {
   const zip = new JSZip();
   const images = await Promise.all(rows.map(async (item, index) => ({
     id: index + 1,
-    data: dataUrlToUint8Array(await imageUrlToFittedDataUrl(item.imageUrl)),
+    ...(await imageUrlToOriginalImageData(item.imageUrl)),
   })));
   images.forEach((image) => zip.file(`word/media/image${image.id}.png`, image.data));
   zip.file("[Content_Types].xml", docxContentTypes(images.length));
@@ -734,12 +734,14 @@ function docxTable(pageImages, addBreak) {
 }
 
 function docxCell(image) {
-  const content = image ? docxImage(image.id) : "";
+  const content = image ? docxImage(image) : "";
   return `<w:tc><w:tcPr><w:tcW w:w="1744" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r>${content}</w:r></w:p></w:tc>`;
 }
 
-function docxImage(id) {
-  return `<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="1107440" cy="2575560"/><wp:docPr id="${id}" name="付款截图${id}"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${id}" name="image${id}.png"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1107440" cy="2575560"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing>`;
+function docxImage(image) {
+  const width = 1107440;
+  const height = Math.max(1, Math.round(width * image.height / image.width));
+  return `<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${width}" cy="${height}"/><wp:docPr id="${image.id}" name="付款截图${image.id}"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${image.id}" name="image${image.id}.png"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId${image.id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${width}" cy="${height}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing>`;
 }
 
 function docxBorder(name) { return `<w:${name} w:val="single" w:sz="6" w:color="D9D9D9"/>`; }
@@ -846,6 +848,11 @@ async function imageUrlToFittedDataUrl(url) {
   const top = Math.round((height - drawHeight) / 2);
   ctx.drawImage(image, left, top, drawWidth, drawHeight);
   return canvas.toDataURL("image/png");
+}
+
+async function imageUrlToOriginalImageData(url) {
+  const image = await loadImage(url);
+  return { data: dataUrlToUint8Array(await imageUrlToDataUrl(url)), width: image.naturalWidth || 1, height: image.naturalHeight || 1 };
 }
 
 function loadImage(url) {
