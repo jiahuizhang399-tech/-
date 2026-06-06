@@ -3176,3 +3176,105 @@ button,
     white-space: nowrap !important;
   }
 }
+
+/* Desktop invoice column final override. */
+@media (min-width: 901px) {
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice,
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.invoice-needs-reupload,
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.no-invoice {
+    display: grid !important;
+    grid-template-columns: 58px 76px minmax(0, 1fr) !important;
+    grid-auto-rows: auto !important;
+    align-items: center !important;
+    gap: 6px 8px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.no-invoice {
+    grid-template-columns: 58px minmax(0, 1fr) !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-upload,
+  body #itemsTable tbody td:nth-child(7) .invoice-preview-action,
+  body #itemsTable tbody td:nth-child(7) .invoice-remove {
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
+    padding: 0 8px !important;
+    line-height: 30px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-upload,
+  body #itemsTable tbody td:nth-child(7) .invoice-preview-action {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-remove {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-empty {
+    grid-column: 2 / -1 !important;
+    grid-row: 1 !important;
+    justify-self: start !important;
+    align-self: center !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-file,
+  body #itemsTable tbody td:nth-child(7) .invoice-file-note {
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    height: 20px !important;
+    min-height: 20px !important;
+    max-height: 20px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #245f66 !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    line-height: 20px !important;
+    text-align: left !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-amount {
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    grid-column: 1 / -1 !important;
+    grid-row: 3 !important;
+    width: 100% !important;
+    height: 16px !important;
+    margin: 0 !important;
+    line-height: 16px !important;
+    white-space: nowrap !important;
+  }
+}
