@@ -3177,104 +3177,72 @@ button,
   }
 }
 
-/* Desktop invoice column final override. */
-@media (min-width: 901px) {
-  body #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice,
-  body #itemsTable tbody td:nth-child(7) .invoice-cell.invoice-needs-reupload,
-  body #itemsTable tbody td:nth-child(7) .invoice-cell.no-invoice {
-    display: grid !important;
-    grid-template-columns: 58px 76px minmax(0, 1fr) !important;
-    grid-auto-rows: auto !important;
-    align-items: center !important;
-    gap: 6px 8px !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    padding: 0 !important;
+.pdf-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: none;
+  padding: 20px;
+  background: rgba(15, 24, 28, .72);
+}
+
+.pdf-viewer.open {
+  display: grid;
+  place-items: center;
+}
+
+.pdf-modal {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(960px, 100%);
+  height: min(86vh, 920px);
+  overflow: hidden;
+  border: 1px solid #dfd7ca;
+  border-radius: 18px;
+  background: #fffdf8;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, .28);
+}
+
+.pdf-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid #dfd7ca;
+  background: #fffdf8;
+}
+
+.pdf-bar strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #1f2a2e;
+  font-size: 14px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-modal iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+@media (max-width: 900px) {
+  .pdf-viewer {
+    padding: 8px;
   }
 
-  body #itemsTable tbody td:nth-child(7) .invoice-cell.no-invoice {
-    grid-template-columns: 58px minmax(0, 1fr) !important;
+  .pdf-modal {
+    width: 100%;
+    height: 92vh;
+    border-radius: 14px;
   }
 
-  body #itemsTable tbody td:nth-child(7) .invoice-upload,
-  body #itemsTable tbody td:nth-child(7) .invoice-preview-action,
-  body #itemsTable tbody td:nth-child(7) .invoice-remove {
-    position: static !important;
-    top: auto !important;
-    right: auto !important;
-    bottom: auto !important;
-    left: auto !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: none !important;
-    height: 30px !important;
-    min-height: 30px !important;
-    max-height: 30px !important;
-    padding: 0 8px !important;
-    line-height: 30px !important;
-  }
-
-  body #itemsTable tbody td:nth-child(7) .invoice-upload,
-  body #itemsTable tbody td:nth-child(7) .invoice-preview-action {
-    grid-column: 1 !important;
-    grid-row: 1 !important;
-  }
-
-  body #itemsTable tbody td:nth-child(7) .invoice-remove {
-    grid-column: 2 !important;
-    grid-row: 1 !important;
-  }
-
-  body #itemsTable tbody td:nth-child(7) .invoice-empty {
-    grid-column: 2 / -1 !important;
-    grid-row: 1 !important;
-    justify-self: start !important;
-    align-self: center !important;
-  }
-
-  body #itemsTable tbody td:nth-child(7) .invoice-file,
-  body #itemsTable tbody td:nth-child(7) .invoice-file-note {
-    position: static !important;
-    top: auto !important;
-    right: auto !important;
-    bottom: auto !important;
-    left: auto !important;
-    grid-column: 1 / -1 !important;
-    grid-row: 2 !important;
-    display: block !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-    height: 20px !important;
-    min-height: 20px !important;
-    max-height: 20px !important;
-    padding: 0 !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    background: transparent !important;
-    box-shadow: none !important;
-    color: #245f66 !important;
-    font-size: 12px !important;
-    font-weight: 600 !important;
-    line-height: 20px !important;
-    text-align: left !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-  }
-
-  body #itemsTable tbody td:nth-child(7) .invoice-amount {
-    position: static !important;
-    top: auto !important;
-    right: auto !important;
-    bottom: auto !important;
-    left: auto !important;
-    grid-column: 1 / -1 !important;
-    grid-row: 3 !important;
-    width: 100% !important;
-    height: 16px !important;
-    margin: 0 !important;
-    line-height: 16px !important;
-    white-space: nowrap !important;
+  .pdf-bar {
+    padding: 8px 10px;
   }
 }
