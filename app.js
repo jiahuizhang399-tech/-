@@ -1,6 +1,6 @@
 const categories = ["交通费", "差旅费", "餐费", "物料费", "其他费用"];
 const categoryRules = [
-  { category: "交通费", type: "高速费", words: ["高速", "通行费", "etc", "收费站", "停车区"] },
+  { category: "交通费", type: "高速费", words: ["高速", "通行费", "通行费用", "通行", "etc", "收费站", "收费所", "停车区", "服务区", "隧道"] },
   { category: "交通费", type: "停车费", words: ["停车"] },
   { category: "交通费", type: "打车费", words: ["滴滴", "出租", "网约车", "出行"] },
   { category: "餐费", type: "餐费", words: ["餐", "饭", "咖啡", "美食", "luckin", "午餐"] },
@@ -216,7 +216,7 @@ function explainPaymentAmount(text) {
 
 function findPrimaryPaymentAmount(text) {
   const lines = String(text || "").split(/\n+/).map(normalizeText).filter(Boolean);
-  const visual = findVisualAmount(lines);
+  const visual = findVisualAmount(lines, text);
   if (visual) return visual;
   const marked = findMarkedAmount(lines);
   if (marked) return marked;
@@ -242,11 +242,13 @@ function findPrimaryPaymentAmount(text) {
   return candidates[0].amount;
 }
 
-function findVisualAmount(lines) {
+function findVisualAmount(lines, rawText = "") {
   for (const line of lines) {
     const match = line.match(/__visual_amount__\s*(\d{1,6}(?:[.,]\d{1,2})?)/);
     const amount = normalizeAmount(match && match[1]);
-    if (amount) return amount;
+    if (!amount) continue;
+    const context = normalizeText(rawText).slice(0, 600);
+    if (/[-−﹣－—–]\s*[¥￥]?\s*\d/.test(context) || /支付成功|交易成功|当前状态|付款|支付/.test(context)) return amount;
   }
   return 0;
 }
@@ -426,7 +428,7 @@ function normalizeDateParts(year, month, day) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 function guessCategory(text) { for (const rule of categoryRules) if (rule.words.some((word) => text.includes(word.toLowerCase()))) return { category: rule.category, type: rule.type }; return { category: "其他费用", type: "其他费用" }; }
-function getUsefulTextLines(rawText) { return String(rawText || "").split(/\n+/).map((line) => line.trim().replace(/\s+/g, " ")).filter(Boolean); }
+function getUsefulTextLines(rawText) { return String(rawText || "").split(/\n+/).map((line) => line.trim().replace(/\s+/g, " ").replace(/([\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])/g, "$1")).filter(Boolean); }
 function guessProductName(lines) {
   const stopWords = "商户全称|商户名称|收款机构|收单机构|清算机构|支付方式|交易单号|商户单号|订单号|当前状态|支付时间|退款记录|账单服务|商家小程序|发起群收款|在此商户的交易";
   for (let index = 0; index < lines.length; index += 1) {
@@ -460,6 +462,8 @@ function guessProductNameFallback(lines) {
 }
 function cleanProductName(value) {
   const text = String(value || "")
+    .replace(/([\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])/g, "$1")
+    .replace(/([a-zA-Z])\s+(?=[a-zA-Z])/g, "$1")
     .replace(/\b\d{8,}\b/g, "")
     .replace(/[-_ ]?(?:美团|支付宝|微信|花呗|app|App)[-_ ]?\d+.*/g, "")
     .replace(/^[：:>＞\s]+|[：:>＞\s]+$/g, "")
