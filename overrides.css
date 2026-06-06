@@ -2865,3 +2865,128 @@ button,
   body .report-block table th:nth-child(6),
   body .report-block table td:nth-child(6) { width: 114px !important; }
 }
+
+@media (max-width: 900px) {
+  body #itemsTable tbody tr {
+    grid-template-rows: 28px 28px 30px 36px 36px !important;
+    gap: 4px 8px !important;
+    padding: 14px !important;
+  }
+
+  body #itemsTable tbody td {
+    min-height: 28px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(5) {
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(5) textarea {
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
+    padding-top: 5px !important;
+    padding-bottom: 5px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7),
+  body #itemsTable tbody td:nth-child(8) {
+    height: 76px !important;
+    min-height: 76px !important;
+    max-height: 76px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(6),
+  body #itemsTable tbody td:nth-child(9),
+  body #itemsTable tbody td:nth-child(6)::after,
+  body #itemsTable tbody td:nth-child(9) > .delete {
+    height: 36px !important;
+    min-height: 36px !important;
+    max-height: 36px !important;
+  }
+
+  body #itemsTable .thumb-button,
+  body #itemsTable .thumb-empty {
+    height: 74px !important;
+    min-height: 74px !important;
+    max-height: 74px !important;
+  }
+
+  body #itemsTable .invoice-file { top: 34px !important; }
+  body #itemsTable .invoice-amount { top: 53px !important; }
+}
+
+@media (max-width: 900px) {
+  body #itemsTable tbody tr,
+  body #itemsTable tbody tr:has(.has-invoice),
+  body #itemsTable tbody tr:has(.no-invoice) {
+    grid-template-rows: 28px 28px 28px 34px 34px !important;
+    gap: 4px 8px !important;
+    padding: 10px 12px !important;
+  }
+
+  body #itemsTable tbody td,
+  body #itemsTable tbody td input,
+  body #itemsTable tbody td select,
+  body #itemsTable tbody td textarea {
+    box-sizing: border-box !important;
+  }
+
+  body #itemsTable tbody td:nth-child(1),
+  body #itemsTable tbody td:nth-child(2),
+  body #itemsTable tbody td:nth-child(3),
+  body #itemsTable tbody td:nth-child(4),
+  body #itemsTable tbody td:nth-child(5),
+  body #itemsTable tbody td:nth-child(1) input,
+  body #itemsTable tbody td:nth-child(2) select,
+  body #itemsTable tbody td:nth-child(3) input,
+  body #itemsTable tbody td:nth-child(4) input,
+  body #itemsTable tbody td:nth-child(5) textarea {
+    height: 28px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7),
+  body #itemsTable tbody td:nth-child(8),
+  body #itemsTable tbody tr:has(.has-invoice) td:nth-child(7),
+  body #itemsTable tbody tr:has(.has-invoice) td:nth-child(8),
+  body #itemsTable tbody tr:has(.no-invoice) td:nth-child(7),
+  body #itemsTable tbody tr:has(.no-invoice) td:nth-child(8) {
+    height: 72px !important;
+    min-height: 72px !important;
+    max-height: 72px !important;
+  }
+
+  body #itemsTable .thumb-button,
+  body #itemsTable .thumb-empty,
+  body #itemsTable tbody tr:has(.has-invoice) .thumb-button,
+  body #itemsTable tbody tr:has(.has-invoice) .thumb-empty,
+  body #itemsTable tbody tr:has(.no-invoice) .thumb-button,
+  body #itemsTable tbody tr:has(.no-invoice) .thumb-empty {
+    height: 70px !important;
+    min-height: 70px !important;
+    max-height: 70px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(6),
+  body #itemsTable tbody td:nth-child(9),
+  body #itemsTable tbody td:nth-child(6)::after,
+  body #itemsTable tbody td:nth-child(9) > .delete {
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+  }
+
+  body #itemsTable .invoice-upload,
+  body #itemsTable .invoice-remove {
+    height: 28px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
+  }
+
+  body #itemsTable .invoice-file { top: 32px !important; }
+  body #itemsTable .invoice-amount { top: 50px !important; }
+}
