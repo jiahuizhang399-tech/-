@@ -197,8 +197,9 @@ function addManualItem() {
 
 function parsePaymentText(text, fileName) {
   const compact = normalizeText(`${text}\n${fileName}`);
-  const cat = guessCategory(compact);
-  return { date: guessDate(compact), category: cat.category, type: cat.type, amount: guessAnyPaymentAmount(text, fileName), description: guessProductName(getUsefulTextLines(text)), invoice: "待补" };
+  const description = guessProductName(getUsefulTextLines(text));
+  const cat = guessCategory(`${compact} ${normalizeText(description)}`);
+  return { date: guessDate(compact), category: cat.category, type: cat.type, amount: guessAnyPaymentAmount(text, fileName), description, invoice: "待补" };
 }
 
 function guessAnyPaymentAmount(text, fileName = "") {
