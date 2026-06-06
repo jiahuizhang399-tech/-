@@ -2989,4 +2989,11 @@ button,
 
   body #itemsTable .invoice-file { top: 32px !important; }
   body #itemsTable .invoice-amount { top: 50px !important; }
+
+  body #itemsTable .invoice-needs-reupload .invoice-file-note {
+    display: block !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
 }
