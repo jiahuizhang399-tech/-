@@ -23,6 +23,9 @@ const viewerImage = $("#viewerImage");
 const viewerCaption = $("#viewerCaption");
 const textViewer = $("#textViewer");
 const rawText = $("#rawText");
+const pdfViewer = $("#pdfViewer");
+const pdfFrame = $("#pdfFrame");
+const pdfViewerTitle = $("#pdfViewerTitle");
 
 invoiceBatchInput.multiple = true;
 invoiceBatchInput.setAttribute("multiple", "");
@@ -62,9 +65,11 @@ $("#exportInvoicesBtn").addEventListener("click", exportInvoicesPdf);
 $("#exportReportPreviewBtn").addEventListener("click", exportReportPreviewImage);
 $("#viewerClose").addEventListener("click", closeImageViewer);
 $("#textClose").addEventListener("click", closeTextViewer);
+$("#pdfClose").addEventListener("click", closePdfViewer);
 imageViewer.addEventListener("click", (event) => { if (event.target === imageViewer) closeImageViewer(); });
 textViewer.addEventListener("click", (event) => { if (event.target === textViewer) closeTextViewer(); });
-document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeImageViewer(); closeTextViewer(); } });
+pdfViewer.addEventListener("click", (event) => { if (event.target === pdfViewer) closePdfViewer(); });
+document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeImageViewer(); closeTextViewer(); closePdfViewer(); } });
 window.addEventListener("beforeunload", (event) => { if (!dirty || !hasDraftableData()) return; event.preventDefault(); event.returnValue = ""; });
 restoreDraft(false);
 
@@ -607,7 +612,7 @@ function categorySelect(item) { return `<select data-id="${item.id}" data-field=
 function screenshotCell(item) { return item.imageUrl ? `<button class="thumb-button" type="button" data-preview="${item.id}"><img class="thumb" src="${item.imageUrl}" alt="${escapeHtml(item.fileName)}"></button>` : `<span class="thumb-empty">手动</span>`; }
 function invoiceCell(item) { const restoredOnly = item.invoiceFileName && !item.invoiceFileUrl; return `<div class="invoice-cell ${item.invoiceFileUrl ? "has-invoice" : restoredOnly ? "invoice-needs-reupload" : "no-invoice"}">${item.invoiceFileUrl ? `<button class="invoice-upload invoice-preview-action" type="button" data-invoice-preview="${item.id}">预览</button><button class="invoice-remove" type="button" data-remove-invoice="${item.id}">删发票</button><button class="invoice-file" type="button" data-invoice-preview="${item.id}">${escapeHtml(item.invoiceFileName)}</button>${item.invoiceAmount ? `<span class="invoice-amount">发票金额：${escapeHtml(item.invoiceAmount)}</span>` : ""}` : restoredOnly ? `<label class="invoice-upload">重传<input type="file" accept="application/pdf,.pdf" data-invoice-file="${item.id}"></label><button class="invoice-remove" type="button" data-remove-invoice="${item.id}">删记录</button><span class="invoice-file invoice-file-note">${escapeHtml(item.invoiceFileName)}</span><span class="invoice-amount">需重传 PDF 才能预览</span>` : `<label class="invoice-upload">PDF<input type="file" accept="application/pdf,.pdf" data-invoice-file="${item.id}"></label><span class="invoice-empty">未上传 PDF</span>`}</div>`; }
 async function updateInvoiceFile(id, file) { if (!file) return; const item = items.find((entry) => entry.id === id); if (!item) return; revokeInvoiceUrl(item); item.invoiceFile = file; item.invoiceFileName = file.name; item.invoiceFileUrl = URL.createObjectURL(file); item.invoiceAmount = window.pdfjsLib ? ((await getInvoiceAmounts(file))[0] || "") : ""; markDirtyAndSave(); setStatus(item.invoiceAmount ? `已上传发票 PDF：${file.name}，识别金额 ${item.invoiceAmount}。刷新后需重新上传原 PDF 才能合并导出。` : `已上传发票 PDF：${file.name}。刷新后需重新上传原 PDF 才能合并导出。`); renderTable(); }
-function openInvoicePreview(id) { const item = items.find((entry) => entry.id === id); if (!item?.invoiceFileUrl) return setStatus(item?.invoiceFileName ? "草稿只保留了发票名称，请重新上传该 PDF 后再预览。" : "请先上传发票 PDF 后再预览。"); const opened = window.open(item.invoiceFileUrl, "_blank", "noopener,noreferrer"); if (!opened) setStatus("浏览器拦截了 PDF 预览窗口，请允许弹窗后再点预览。"); }
+function openInvoicePreview(id) { const item = items.find((entry) => entry.id === id); if (!item?.invoiceFileUrl) return setStatus(item?.invoiceFileName ? "草稿只保留了发票名称，请重新上传该 PDF 后再预览。" : "请先上传发票 PDF 后再预览。"); pdfViewerTitle.textContent = item.invoiceFileName || "发票 PDF 预览"; pdfFrame.src = item.invoiceFileUrl; pdfViewer.classList.add("open"); document.body.classList.add("viewer-open"); setStatus("已在当前页面打开 PDF 预览，不会触发浏览器弹窗拦截。"); }
 function removeInvoiceFile(id) { const item = items.find((entry) => entry.id === id); if (!item) return; revokeInvoiceUrl(item); item.invoiceFile = null; item.invoiceFileName = ""; item.invoiceFileUrl = ""; item.invoiceAmount = ""; if (item.screenshotAmount) item.amount = item.screenshotAmount; markDirtyAndSave(); setStatus(item.screenshotAmount ? `已删除该行发票 PDF，金额已恢复为截图识别金额 ${item.screenshotAmount}。` : "已删除该行发票 PDF。"); renderAll(); }
 function updateItem(id, field, value) { const item = items.find((entry) => entry.id === id); if (!item) return; item[field] = value; markDirtyAndSave(); if (field === "date") renderAll(); else { renderSummary(); renderReportPreview(); } }
 function getTotals() { return categories.map((category) => { const matched = items.filter((item) => item.category === category); return { category, amount: sumAmount(matched), count: matched.length }; }); }
@@ -798,7 +803,7 @@ async function exportReportPreviewImage() {
     if (!blob) return setStatus("生成预览图失败，请重试。");
     const fileName = `${exportBaseFileName("报销")}-报销单预览.png`;
     downloadBlob(blob, fileName);
-    markExportDone(fileName);
+    markReportPreviewExportDone(fileName);
   } catch (error) {
     console.error(error);
     setStatus("生成预览图失败，请重试。");
@@ -879,10 +884,12 @@ function invoiceTotalByCategory(category) {
 function csvCell(value) { return `"${String(value ?? "").replace(/"/g, '""')}"`; }
 function downloadBlob(blob, fileName) { const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = fileName; link.click(); URL.revokeObjectURL(url); dirty = false; saveDraft(false); markExportDone(fileName); }
 function markExportDone(fileName) { setStatus(`已导出：${fileName}。请在浏览器下载记录或系统“下载”文件夹中查看；网页无法直接打开本地文件夹。`); }
+function markReportPreviewExportDone(fileName) { setStatus(`已导出 PNG 图片：${fileName}。手机端请在浏览器下载记录或“文件”App 中打开，长按图片或点分享后选择“保存到相册”。`); }
 function openImageViewer(id) { const item = items.find((entry) => entry.id === id); if (!item) return; viewerImage.src = item.imageUrl; viewerCaption.textContent = item.fileName; imageViewer.classList.add("open"); document.body.classList.add("viewer-open"); }
 function closeImageViewer() { imageViewer.classList.remove("open"); viewerImage.removeAttribute("src"); document.body.classList.remove("viewer-open"); }
 function openTextViewer(id) { const item = items.find((entry) => entry.id === id); if (!item) return; rawText.textContent = item.rawText || "无 OCR 原文"; textViewer.classList.add("open"); document.body.classList.add("viewer-open"); }
 function closeTextViewer() { textViewer.classList.remove("open"); document.body.classList.remove("viewer-open"); }
+function closePdfViewer() { pdfViewer.classList.remove("open"); pdfFrame.removeAttribute("src"); document.body.classList.remove("viewer-open"); }
 function escapeHtml(value) { return String(value ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 function setStatus(message) { statusBar.textContent = message; }
 renderAll();
