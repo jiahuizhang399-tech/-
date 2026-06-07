@@ -3333,3 +3333,177 @@ button,
     padding: 0 6px;
   }
 }
+
+body #itemsTable tbody td:nth-child(7) .invoice-cell.invoice-needs-reupload {
+  display: grid !important;
+  grid-template-columns: 54px 64px minmax(0, 1fr) !important;
+  grid-template-rows: 30px 18px !important;
+  align-items: center !important;
+  gap: 4px 6px !important;
+  min-width: 0 !important;
+}
+
+body #itemsTable tbody td:nth-child(7) .invoice-cell.invoice-needs-reupload .invoice-upload,
+body #itemsTable tbody td:nth-child(7) .invoice-cell.invoice-needs-reupload .invoice-remove {
+  position: static !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  max-height: 30px !important;
+  padding: 0 6px !important;
+  line-height: 30px !important;
+}
+
+body #itemsTable tbody td:nth-child(7) .invoice-cell.invoice-needs-reupload .invoice-upload {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+}
+
+body #itemsTable tbody td:nth-child(7) .invoice-cell.invoice-needs-reupload .invoice-remove {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+}
+
+body #itemsTable tbody td:nth-child(7) .invoice-cell.invoice-needs-reupload .invoice-file-note {
+  position: static !important;
+  grid-column: 3 !important;
+  grid-row: 1 !important;
+  display: block !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  height: 30px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #245f66 !important;
+  font-size: 12px !important;
+  line-height: 30px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+body #itemsTable tbody td:nth-child(7) .invoice-cell.invoice-needs-reupload .invoice-amount {
+  position: static !important;
+  grid-column: 1 / -1 !important;
+  grid-row: 2 !important;
+  height: 18px !important;
+  margin: 0 !important;
+  color: #9a6b1c !important;
+  font-size: 11px !important;
+  line-height: 18px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 900px) {
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice {
+    display: grid !important;
+    grid-template-columns: 50px 58px minmax(0, 1fr) !important;
+    grid-template-rows: 28px 16px !important;
+    align-items: center !important;
+    gap: 3px 5px !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    max-height: 48px !important;
+    overflow: hidden !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice .invoice-preview-action,
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice .invoice-remove {
+    position: static !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
+    padding: 0 4px !important;
+    font-size: 11px !important;
+    line-height: 28px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice .invoice-preview-action {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice .invoice-remove {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice .invoice-file {
+    position: static !important;
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    display: block !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 28px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #245f66 !important;
+    font-size: 11px !important;
+    line-height: 28px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.has-invoice .invoice-amount {
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    display: block !important;
+    height: 16px !important;
+    min-height: 16px !important;
+    max-height: 16px !important;
+    margin: 0 !important;
+    color: #9a6b1c !important;
+    font-size: 10px !important;
+    line-height: 16px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.invoice-needs-reupload {
+    grid-template-columns: 50px 58px minmax(0, 1fr) !important;
+    grid-template-rows: 28px 16px !important;
+    gap: 3px 5px !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    max-height: 48px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.invoice-needs-reupload .invoice-upload,
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.invoice-needs-reupload .invoice-remove {
+    height: 28px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
+    padding: 0 4px !important;
+    font-size: 11px !important;
+    line-height: 28px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.invoice-needs-reupload .invoice-file-note {
+    height: 28px !important;
+    font-size: 11px !important;
+    line-height: 28px !important;
+  }
+
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.invoice-needs-reupload .invoice-amount {
+    height: 16px !important;
+    font-size: 10px !important;
+    line-height: 16px !important;
+  }
+}
