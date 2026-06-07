@@ -3231,28 +3231,22 @@ button,
   background: #fff;
 }
 
-.date-cell {
+.row-actions {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.date-cell input {
-  min-width: 0;
-  flex: 1;
-}
-
 .drag-handle {
-  width: 28px;
-  min-width: 28px;
+  min-width: 48px;
   height: 32px;
-  padding: 0;
+  padding: 0 10px;
   border: 1px solid #d7c7ad;
   border-radius: 9px;
   background: #fff7e8;
   color: #8a5b16;
   cursor: grab;
-  font-size: 16px;
+  font-size: 12px;
   line-height: 1;
   touch-action: none;
 }
@@ -3277,7 +3271,7 @@ button,
 }
 
 .screenshot-remove {
-  min-width: 54px;
+  min-width: 68px;
   height: 30px;
   padding: 0 8px;
   border: 1px solid #efb7aa;
@@ -3302,19 +3296,23 @@ button,
     padding: 8px 10px;
   }
 
-  body #itemsTable tbody td:nth-child(1) .date-cell {
-    gap: 5px;
-  }
-
-  body #itemsTable tbody td:nth-child(1) .date-cell input {
-    width: auto !important;
-  }
-
   .drag-handle {
-    width: 26px;
-    min-width: 26px;
+    min-width: 48px;
     height: 30px;
+    padding: 0 8px;
     border-radius: 8px;
+  }
+
+  body #itemsTable tbody td:nth-child(9) .row-actions {
+    width: 100%;
+    align-items: center;
+    justify-content: stretch;
+  }
+
+  body #itemsTable tbody td:nth-child(9) .row-actions .delete,
+  body #itemsTable tbody td:nth-child(9) .row-actions .drag-handle {
+    flex: 1 1 0;
+    min-width: 0;
   }
 
   body #itemsTable tbody td:nth-child(8) .screenshot-cell {
@@ -3329,8 +3327,8 @@ button,
   }
 
   .screenshot-remove {
-    width: 56px;
-    min-width: 56px;
+    width: 68px;
+    min-width: 68px;
     height: auto;
     padding: 0 6px;
   }
