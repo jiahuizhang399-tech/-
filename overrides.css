@@ -3330,20 +3330,32 @@ button,
 }
 
 .screenshot-cell {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  position: relative;
+  display: block;
 }
 
 .screenshot-remove {
-  min-width: 68px;
-  height: 30px;
-  padding: 0 8px;
-  border: 1px solid #efb7aa;
-  border-radius: 9px;
-  background: #fff1ed;
-  color: #a9412a;
-  font-size: 12px;
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  min-width: 22px;
+  max-width: 22px;
+  height: 22px;
+  min-height: 22px;
+  max-height: 22px;
+  padding: 0;
+  border: 1px solid #e7b19d;
+  border-radius: 50%;
+  background: #fff6f3;
+  color: #98422f;
+  font-size: 16px;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgba(0,0,0,.18);
 }
 
 @media (max-width: 900px) {
@@ -3576,12 +3588,13 @@ body #itemsTable tbody td:nth-child(7) .invoice-cell.invoice-needs-reupload .inv
 
 @media (max-width: 900px) {
   body #itemsTable tbody tr[data-row-id] > td:nth-child(9) {
-    display: block !important;
-    grid-column: 1 / -1 !important;
+    display: grid !important;
+    grid-column: 4 / 5 !important;
     grid-row: 5 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
+    place-items: stretch !important;
+    width: 68px !important;
+    max-width: 68px !important;
+    min-width: 68px !important;
     height: 34px !important;
     min-height: 34px !important;
     max-height: 34px !important;
@@ -3592,7 +3605,7 @@ body #itemsTable tbody td:nth-child(7) .invoice-cell.invoice-needs-reupload .inv
   body #itemsTable tbody tr[data-row-id] > td:nth-child(9) > .row-actions {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
-    gap: 6px !important;
+    gap: 3px !important;
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
@@ -3611,11 +3624,13 @@ body #itemsTable tbody td:nth-child(7) .invoice-cell.invoice-needs-reupload .inv
     height: 34px !important;
     min-height: 34px !important;
     max-height: 34px !important;
-    padding: 0 4px !important;
+    padding: 0 !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
     text-align: center !important;
     white-space: nowrap !important;
+    font-size: 10px !important;
+    line-height: 1 !important;
   }
 }
 
