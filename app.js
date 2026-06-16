@@ -175,14 +175,14 @@ async function imageFileToAmountPreviewDataUrl(file, box, ocrWidth, ocrHeight) {
     const scaleX = image.naturalWidth / ocrWidth;
     const scaleY = image.naturalHeight / ocrHeight;
     const amountBox = { x: box.x * scaleX, y: box.y * scaleY, width: Math.max(1, box.width * scaleX), height: Math.max(1, box.height * scaleY) };
-    const aspect = 1.42;
-    let cropWidth = Math.min(image.naturalWidth, Math.max(amountBox.width * 4.8, image.naturalWidth * .46));
-    let cropHeight = Math.min(image.naturalHeight, Math.max(amountBox.height * 4, cropWidth / aspect));
+    const aspect = box.preferredCrop ? 1.28 : 1.42;
+    let cropWidth = Math.min(image.naturalWidth, Math.max(amountBox.width * (box.preferredCrop ? 1.15 : 4.8), image.naturalWidth * (box.preferredCrop ? .54 : .46)));
+    let cropHeight = Math.min(image.naturalHeight, Math.max(amountBox.height * (box.preferredCrop ? 2.55 : 4), cropWidth / aspect));
     cropWidth = Math.min(cropWidth, cropHeight * aspect, image.naturalWidth);
     const centerX = amountBox.x + amountBox.width / 2;
     const centerY = amountBox.y + amountBox.height / 2;
     const left = clamp(centerX - cropWidth / 2, 0, image.naturalWidth - cropWidth);
-    const top = clamp(centerY - cropHeight * .52, 0, image.naturalHeight - cropHeight);
+    const top = clamp(centerY - cropHeight * (box.preferredCrop ? .46 : .52), 0, image.naturalHeight - cropHeight);
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(cropWidth);
     canvas.height = Math.round(cropHeight);
@@ -349,7 +349,7 @@ function selectBestAmountPreviewBox(candidates, targetAmount, ocrWidth, ocrHeigh
 }
 
 function fallbackMainAmountBox(ocrWidth, ocrHeight) {
-  return { x: ocrWidth * .32, y: ocrHeight * .235, width: ocrWidth * .36, height: ocrHeight * .075, amount: 0, score: 0 };
+  return { x: ocrWidth * .23, y: ocrHeight * .255, width: ocrWidth * .54, height: ocrHeight * .18, amount: 0, score: 0, preferredCrop: true };
 }
 
 function amountBoxCandidates(data, offset = { x: 0, y: 0 }, priority = 1) {
@@ -649,10 +649,10 @@ function guessInvoiceAmounts(text) {
 
 function findInvoiceTotalAmount(text) {
   const windows = [];
-  for (const keyword of ["价税合计", "税价合计", "小写", "发票金额"]) {
+  for (const keyword of ["价税合计", "税价合计", "合计小写", "小写", "发票金额"]) {
     let index = text.indexOf(keyword);
     while (index >= 0) {
-      windows.push(text.slice(index, index + 260));
+      windows.push(text.slice(Math.max(0, index - 80), index + 320));
       index = text.indexOf(keyword, index + keyword.length);
     }
   }
@@ -660,14 +660,16 @@ function findInvoiceTotalAmount(text) {
   const patterns = [
     /[零〇壹贰叁肆伍陆柒捌玖拾佰仟万亿圆元角分整]+\s*[¥￥]?\s*(\d{1,5}\.\d{2})/,
     /(\d{1,5}\.\d{2})\s*[¥￥]?\s*[零〇壹贰叁肆伍陆柒捌玖拾佰仟万亿圆元角分整]+/,
-    /小写[\s\S]{0,80}[¥￥]?\s*(\d{1,5}\.\d{2})/,
+    /(?:价税合计|税价合计|合计小写|小写)[\s\S]{0,120}[¥￥]?\s*(\d{1,5}\.\d{2})/,
     /[¥￥]\s*(\d{1,5}\.\d{2})/,
+    /(?:合计|总计|金额)[^\d¥￥]{0,30}[¥￥]?\s*(\d{1,5}\.\d{2})/,
   ];
 
   for (const windowText of windows) {
     for (const pattern of patterns) {
       const match = windowText.match(pattern);
       const amount = normalizeAmount(match && match[1]);
+      if (/税率|单价|数量/.test(windowText.slice(Math.max(0, (match?.index || 0) - 20), (match?.index || 0) + 40))) continue;
       if (validInvoiceAmount(amount)) return amount;
     }
   }
@@ -721,7 +723,7 @@ async function openInvoicePreview(id) {
     const pdf = await window.pdfjsLib.getDocument({ data: source }).promise;
     if (run !== pdfPreviewRun) return;
     pdfPages.innerHTML = "";
-    const availableWidth = Math.max(280, Math.min(900, pdfPages.clientWidth - 24));
+    const availableWidth = Math.max(280, Math.min(1200, pdfPages.clientWidth - 24));
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
       if (run !== pdfPreviewRun) return;
       const page = await pdf.getPage(pageNumber);
