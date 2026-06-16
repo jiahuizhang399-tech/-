@@ -3283,6 +3283,34 @@ button,
   background: #fff;
 }
 
+.pdf-pages {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  overflow: auto;
+  padding: 12px;
+  background: #ede6dc;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pdf-pages canvas {
+  display: block;
+  width: 100%;
+  max-width: 900px;
+  height: auto;
+  margin: 0 auto;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .16);
+}
+
+.pdf-loading {
+  margin: auto;
+  padding: 18px;
+  color: #526166;
+  text-align: center;
+}
+
 .row-actions {
   display: flex;
   align-items: center;
@@ -3676,4 +3704,29 @@ body #itemsTable tbody td:nth-child(7) .invoice-cell.invoice-needs-reupload .inv
     text-align: center !important;
     white-space: nowrap !important;
   }
+}
+
+
+ (min-width: 901px) {
+  body .table-wrap { overflow-x: visible !important; }
+  body #itemsTable { width: 100% !important; min-width: 0 !important; table-layout: fixed !important; }
+  body #itemsTable th,
+  body #itemsTable td { padding-left: 6px !important; padding-right: 6px !important; box-sizing: border-box !important; }
+  body #itemsTable th:nth-child(1), body #itemsTable td:nth-child(1) { width: 112px !important; min-width: 112px !important; max-width: 112px !important; }
+  body #itemsTable th:nth-child(2), body #itemsTable td:nth-child(2) { width: 92px !important; min-width: 92px !important; max-width: 92px !important; }
+  body #itemsTable th:nth-child(3), body #itemsTable td:nth-child(3) { width: 112px !important; min-width: 112px !important; max-width: 112px !important; }
+  body #itemsTable th:nth-child(4), body #itemsTable td:nth-child(4) { width: 78px !important; min-width: 78px !important; max-width: 78px !important; }
+  body #itemsTable th:nth-child(5), body #itemsTable td:nth-child(5) { width: auto !important; min-width: 220px !important; max-width: none !important; }
+  body #itemsTable th:nth-child(6), body #itemsTable td:nth-child(6) { width: 58px !important; min-width: 58px !important; max-width: 58px !important; text-align: center !important; }
+  body #itemsTable th:nth-child(7), body #itemsTable td:nth-child(7) { width: 180px !important; min-width: 180px !important; max-width: 180px !important; }
+  body #itemsTable th:nth-child(8), body #itemsTable td:nth-child(8) { width: 96px !important; min-width: 96px !important; max-width: 96px !important; text-align: center !important; }
+  body #itemsTable th:nth-child(9), body #itemsTable td:nth-child(9) { width: 64px !important; min-width: 64px !important; max-width: 64px !important; text-align: center !important; }
+  body #itemsTable input, body #itemsTable select, body #itemsTable textarea { padding-left: 6px !important; padding-right: 6px !important; font-size: 13px !important; }
+  body #itemsTable input[type="date"] { min-width: 0 !important; width: 100% !important; font-size: 13px !important; padding-left: 4px !important; padding-right: 2px !important; }
+  body #itemsTable td:nth-child(2) select,
+  body #itemsTable td:nth-child(4) input { min-width: 0 !important; width: 100% !important; }
+  body #itemsTable .invoice-cell { gap: 3px 4px !important; }
+  body #itemsTable tbody td:nth-child(7) .invoice-cell.invoice-needs-reupload { grid-template-columns: 50px 54px !important; gap: 3px 4px !important; }
+  body #itemsTable tbody td:nth-child(8) .screenshot-cell .thumb-button { width: 68px !important; min-width: 68px !important; max-width: 68px !important; height: 68px !important; min-height: 68px !important; max-height: 68px !important; }
+  body #itemsTable tbody td:nth-child(9) .row-actions { display: flex !important; flex-direction: column !important; grid-template-columns: none !important; gap: 3px !important; height: auto !important; min-height: 0 !important; max-height: none !important; }
 }
