@@ -172,8 +172,15 @@ async function handleWechatBillScreenshots(fileList) {
         source: "微信列表截图",
       });
       recognizeWechatBillRow(imageUrl, index, file.name).then((parsed) => {
-        const item = items.find((entry) => entry.id === id);
+        const itemIndex = items.findIndex((entry) => entry.id === id);
+        const item = items[itemIndex];
         if (!item || item.source !== "微信列表截图") return;
+        if (parsed.skip) {
+          items.splice(itemIndex, 1);
+          markDirtyAndSave();
+          renderAll();
+          return;
+        }
         const cat = guessCategory(normalizeText(parsed.description));
         item.rawText = parsed.rawText;
         item.date = parsed.date || item.date;
@@ -199,17 +206,74 @@ async function splitWechatBillScreenshot(file) {
   const url = URL.createObjectURL(file);
   try {
     const image = await loadImage(url);
+    const bounds = detectWechatBillRowBounds(image);
+    if (bounds.length) return bounds.map((bound) => cropImageToDataUrl(image, 0, bound.top, image.naturalWidth, bound.height));
     const startY = Math.round(image.naturalHeight * 0.237);
-    const rowHeight = Math.round(image.naturalHeight * 0.084);
+    const rowHeight = Math.round(Math.min(image.naturalHeight * 0.084, image.naturalWidth * 0.18));
     const minBottomGap = Math.round(image.naturalHeight * 0.012);
+    const maxRows = image.naturalHeight > image.naturalWidth * 4 ? 80 : 12;
     const rowImages = [];
-    for (let top = startY, index = 0; top + rowHeight <= image.naturalHeight - minBottomGap && index < 12; top += rowHeight, index += 1) {
+    for (let top = startY, index = 0; top + rowHeight <= image.naturalHeight - minBottomGap && index < maxRows; top += rowHeight, index += 1) {
       rowImages.push(cropImageToDataUrl(image, 0, top, image.naturalWidth, rowHeight));
     }
     return rowImages;
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+function detectWechatBillRowBounds(image) {
+  const width = image.naturalWidth;
+  const height = image.naturalHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(image, 0, 0);
+  const data = ctx.getImageData(0, 0, width, height).data;
+  const x1 = Math.round(width * 0.72);
+  const x2 = Math.round(width * 0.98);
+  const minDarkPixels = Math.max(6, Math.round((x2 - x1) * 0.018));
+  const darkRows = [];
+  for (let y = Math.round(height * 0.04); y < Math.round(height * 0.985); y += 1) {
+    let dark = 0;
+    for (let x = x1; x < x2; x += 3) {
+      const offset = (y * width + x) * 4;
+      const r = data[offset];
+      const g = data[offset + 1];
+      const b = data[offset + 2];
+      if (r < 150 && g < 150 && b < 150) dark += 1;
+    }
+    if (dark >= minDarkPixels) darkRows.push(y);
+  }
+  const clusters = [];
+  for (const y of darkRows) {
+    const last = clusters[clusters.length - 1];
+    if (last && y - last.end <= 3) {
+      last.end = y;
+      last.count += 1;
+    } else {
+      clusters.push({ start: y, end: y, count: 1 });
+    }
+  }
+  const amountCenters = clusters
+    .filter((cluster) => cluster.count >= 5)
+    .map((cluster) => Math.round((cluster.start + cluster.end) / 2));
+  const minGap = Math.round(width * 0.085);
+  const centers = [];
+  for (const center of amountCenters) {
+    if (!centers.length || center - centers[centers.length - 1] >= minGap) centers.push(center);
+    else centers[centers.length - 1] = Math.round((centers[centers.length - 1] + center) / 2);
+  }
+  if (centers.length < 3) return [];
+  const gaps = centers.slice(1).map((center, index) => center - centers[index]).filter((gap) => gap > minGap && gap < width * 0.35);
+  const medianGap = gaps.length ? gaps.sort((a, b) => a - b)[Math.floor(gaps.length / 2)] : Math.round(width * 0.19);
+  const rowHeight = Math.round(Math.max(width * 0.15, Math.min(width * 0.24, medianGap * 1.05)));
+  return centers.map((center) => {
+    const top = Math.max(0, Math.round(center - rowHeight * 0.44));
+    const bottom = Math.min(height, Math.round(top + rowHeight));
+    return { top, height: bottom - top };
+  }).filter((bound) => bound.height >= width * 0.12);
 }
 
 function cropImageToDataUrl(image, left, top, width, height) {
@@ -258,7 +322,8 @@ async function recognizeWechatBillRow(imageUrl, index, fileName) {
     const amount = parseWechatRowAmount(amountText || text);
     const date = parseWechatRowDate(`${dateText}\n${text}`);
     const description = parseWechatRowDescription(text) || fallback.description;
-    return { description, date, amount, rawText: `微信账单列表截图导入：${fileName}\n第 ${index + 1} 条\n__ROW_TEXT__\n${text}\n__ROW_DATE__\n${dateText}\n__ROW_AMOUNT__\n${amountText}` };
+    const rawText = `微信账单列表截图导入：${fileName}\n第 ${index + 1} 条\n__ROW_TEXT__\n${text}\n__ROW_DATE__\n${dateText}\n__ROW_AMOUNT__\n${amountText}`;
+    return { description, date, amount, skip: shouldSkipWechatBillRow(text, amountText, amount), rawText };
   } catch (error) {
     console.error(error);
     return { ...fallback, rawText: `${fallback.rawText}\nOCR 失败：${String(error?.message || error)}` };
@@ -276,10 +341,17 @@ function dataUrlToBlob(dataUrl) {
 
 function parseWechatRowAmount(text) {
   const normalized = normalizeText(text).replace(/\s+/g, "").replace(/[—–−﹣－]/g, "-");
-  const signed = normalized.match(/[-+]?\d{1,6}[.,]\d{1,2}/);
-  const integer = normalized.match(/[-+]?\d{1,6}(?!\d)/);
-  const amount = normalizeAmount((signed || integer || [])[0]);
+  const signed = normalized.match(/[¥￥+-]\d{1,5}(?:[.,]\d{1,2})?/) || normalized.match(/\d{1,5}[.,]\d{1,2}/);
+  const amount = normalizeAmount((signed || [])[0]);
+  if (!amount || amount > 20000) return "";
   return amount ? amount.toFixed(2) : "";
+}
+
+function shouldSkipWechatBillRow(text, amountText, amount) {
+  const normalized = normalizeText(`${amountText}\n${text}`).replace(/\s+/g, "");
+  if (/\+\s*(?:¥|￥)?\d/.test(normalized) || /(?:¥|￥)\+\d/.test(normalized)) return true;
+  if (/收入|退款|已退|转入/.test(normalized)) return true;
+  return !amount;
 }
 
 function parseWechatRowDate(text) {
