@@ -148,9 +148,12 @@ async function handleWechatBillScreenshots(fileList) {
     const file = files[fileIndex];
     setStatus(`正在切分微信账单截图 ${fileIndex + 1}/${files.length}：${file.name}`);
     const rowImages = await splitWechatBillScreenshot(file);
+    const longShotAmounts = rowImages.length > 30 ? await recognizeWechatLongScreenshotAmounts(file) : [];
     for (let index = 0; index < rowImages.length; index += 1) {
       const imageUrl = rowImages[index];
+      const presetAmount = longShotAmounts[index] || "";
       const id = crypto.randomUUID();
+      if (rowImages.length > 30 && !presetAmount) continue;
       items.push({
         id,
         fileName: `${file.name} #${index + 1}`,
@@ -160,8 +163,8 @@ async function handleWechatBillScreenshots(fileList) {
         date: "",
         category: "其他费用",
         type: "其他费用",
-        amount: "",
-        screenshotAmount: "",
+        amount: presetAmount,
+        screenshotAmount: presetAmount,
         description: `微信账单截图第 ${index + 1} 条`,
         invoiceFile: null,
         invoiceFileName: "",
@@ -171,35 +174,115 @@ async function handleWechatBillScreenshots(fileList) {
         invoice: "待补",
         source: "微信列表截图",
       });
-      recognizeWechatBillRow(imageUrl, index, file.name).then((parsed) => {
-        const itemIndex = items.findIndex((entry) => entry.id === id);
-        const item = items[itemIndex];
-        if (!item || item.source !== "微信列表截图") return;
-        if (parsed.skip) {
-          items.splice(itemIndex, 1);
-          markDirtyAndSave();
-          renderAll();
-          return;
-        }
-        const cat = guessCategory(normalizeText(parsed.description));
-        item.rawText = parsed.rawText;
-        item.date = parsed.date || item.date;
-        item.category = cat.category;
-        item.type = cat.type;
-        item.amount = parsed.amount || item.amount;
-        item.screenshotAmount = parsed.amount || item.screenshotAmount;
-        item.description = parsed.description || item.description;
-        markDirtyAndSave();
-        renderAll();
-      }).catch((error) => console.error(error));
     }
     total += rowImages.length;
     renderAll();
+    if (rowImages.length <= 30) await recognizeWechatBillRowsSequentially(file.name, rowImages.length, false);
   }
   markDirtyAndSave();
   if (wechatShotInput) wechatShotInput.value = "";
-  const missing = items.filter((item) => item.source === "微信列表截图" && (!item.amount || /^微信账单截图第/.test(item.description))).length;
-  setStatus(`已从微信账单截图切出 ${total} 条单行截图，正在后台识别金额和说明。可先查看截图列效果。`);
+  setStatus(`已从微信账单截图切出 ${total} 条单行截图，完成 OCR 后保留 ${items.filter((item) => item.source === "微信列表截图").length} 条支出记录。`);
+}
+
+async function recognizeWechatLongScreenshotAmounts(file) {
+  if (!window.Tesseract) return [];
+  const url = URL.createObjectURL(file);
+  try {
+    const image = await loadImage(url);
+    const bounds = detectWechatBillRowBounds(image);
+    if (!bounds.length) return [];
+    const rowHeight = 78;
+    const sourceX = Math.round(image.naturalWidth * 0.70);
+    const sourceWidth = Math.round(image.naturalWidth * 0.30);
+    const canvas = document.createElement("canvas");
+    canvas.width = 360;
+    canvas.height = bounds.length * rowHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    bounds.forEach((bound, index) => {
+      const cropHeight = Math.round(bound.height * 0.62);
+      ctx.drawImage(image, sourceX, bound.top, sourceWidth, cropHeight, 0, index * rowHeight + 8, canvas.width, rowHeight - 16);
+    });
+    const result = await Tesseract.recognize(dataUrlToBlob(canvas.toDataURL("image/jpeg", 0.95)), "eng", { tessedit_char_whitelist: "0123456789.,-+¥￥ \n" });
+    const lines = String(result.data.text || "").split(/\n+/).map((line) => line.trim()).filter(Boolean);
+    const amounts = [];
+    for (const line of lines) {
+      if (/\+/.test(line)) { amounts.push(""); continue; }
+      amounts.push(parseWechatRowAmount(line));
+    }
+    while (amounts.length < bounds.length) amounts.push("");
+    return amounts.slice(0, bounds.length);
+  } catch (error) {
+    console.error(error);
+    return [];
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function recognizeWechatBillRowsSequentially(fileName, expectedCount, fastMode = false) {
+  const pending = items.filter((item) => item.source === "微信列表截图" && item.fileName.startsWith(`${fileName} #`) && /^微信账单截图第/.test(item.description));
+  const workerState = { worker: null };
+  for (let index = 0; index < pending.length; index += 1) {
+    const entry = pending[index];
+    setStatus(`正在 OCR 识别微信账单 ${index + 1}/${expectedCount}：${fileName}`);
+    const parsed = fastMode ? await recognizeWechatBillRowAmountOnly(entry.imageUrl, index, fileName) : await recognizeWechatBillRow(entry.imageUrl, index, fileName, workerState);
+    const itemIndex = items.findIndex((item) => item.id === entry.id);
+    const item = items[itemIndex];
+    if (!item || item.source !== "微信列表截图") continue;
+    if (parsed.skip) {
+      items.splice(itemIndex, 1);
+    } else {
+      const cat = guessCategory(normalizeText(parsed.description));
+      item.rawText = parsed.rawText;
+      item.date = parsed.date || item.date;
+      item.category = cat.category;
+      item.type = cat.type;
+      item.amount = parsed.amount || item.amount;
+      item.screenshotAmount = parsed.amount || item.screenshotAmount;
+      item.description = parsed.description || item.description;
+    }
+    if (index % 2 === 0 || index === pending.length - 1) {
+      markDirtyAndSave();
+      renderAll();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    if (workerState.worker && index > 0 && index % 20 === 0) {
+      await workerState.worker.terminate();
+      workerState.worker = null;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+  if (workerState.worker) await workerState.worker.terminate();
+}
+
+async function recognizeWechatBillRowAmountOnly(imageUrl, index, fileName) {
+  const fallback = {
+    description: `微信账单截图第 ${index + 1} 条`,
+    date: "",
+    amount: "",
+    skip: true,
+    rawText: `微信账单长截图导入：${fileName}\n第 ${index + 1} 条。金额 OCR 未执行。`,
+  };
+  if (!window.Tesseract) return fallback;
+  try {
+    const image = await loadImage(imageUrl);
+    const amountCrop = cropImageToScaledDataUrl(image, image.naturalWidth * .70, 0, image.naturalWidth * .30, image.naturalHeight * .62, 2.2);
+    const result = await Tesseract.recognize(dataUrlToBlob(amountCrop), "eng", { tessedit_char_whitelist: "0123456789.,-+¥￥ " });
+    const amountText = result.data.text || "";
+    const amount = parseWechatRowAmount(amountText);
+    return {
+      description: fallback.description,
+      date: "",
+      amount,
+      skip: shouldSkipWechatBillRow("", amountText, amount),
+      rawText: `微信账单长截图导入：${fileName}\n第 ${index + 1} 条\n__ROW_AMOUNT__\n${amountText}`,
+    };
+  } catch (error) {
+    console.error(error);
+    return { ...fallback, rawText: `${fallback.rawText}\nOCR 失败：${String(error?.message || error)}` };
+  }
 }
 
 async function splitWechatBillScreenshot(file) {
@@ -298,7 +381,7 @@ function cropImageToScaledDataUrl(image, left, top, width, height, scale = 2) {
   return canvas.toDataURL("image/jpeg", 0.94);
 }
 
-async function recognizeWechatBillRow(imageUrl, index, fileName) {
+async function recognizeWechatBillRow(imageUrl, index, fileName, workerState = null) {
   const fallback = {
     description: `微信账单截图第 ${index + 1} 条`,
     date: "",
@@ -307,20 +390,12 @@ async function recognizeWechatBillRow(imageUrl, index, fileName) {
   };
   if (!window.Tesseract) return fallback;
   try {
-    const image = await loadImage(imageUrl);
-    const textCrop = cropImageToDataUrl(image, image.naturalWidth * .17, image.naturalHeight * .05, image.naturalWidth * .58, image.naturalHeight * .9);
-    const amountCrop = cropImageToDataUrl(image, image.naturalWidth * .74, image.naturalHeight * .02, image.naturalWidth * .24, image.naturalHeight * .56);
-    const dateCrop = cropImageToScaledDataUrl(image, image.naturalWidth * .17, image.naturalHeight * .42, image.naturalWidth * .36, image.naturalHeight * .42, 3);
-    const [textResult, amountResult, dateResult] = await Promise.all([
-      Tesseract.recognize(dataUrlToBlob(textCrop), "chi_sim+eng"),
-      Tesseract.recognize(dataUrlToBlob(amountCrop), "eng", { tessedit_char_whitelist: "0123456789.,-+¥￥ " }),
-      Tesseract.recognize(dataUrlToBlob(dateCrop), "chi_sim+eng", { tessedit_char_whitelist: "0123456789年月日:： /-" }),
-    ]);
-    const text = textResult.data.text || "";
-    const amountText = amountResult.data.text || "";
-    const dateText = dateResult.data.text || "";
-    const amount = parseWechatRowAmount(amountText || text);
-    const date = parseWechatRowDate(`${dateText}\n${text}`);
+    const result = await recognizeWechatImageText(imageUrl, workerState);
+    const text = result.data.text || "";
+    const amountText = text;
+    const dateText = text;
+    const amount = parseWechatRowAmount(text);
+    const date = normalizeWechatFutureDate(parseWechatRowDate(text));
     const description = parseWechatRowDescription(text) || fallback.description;
     const rawText = `微信账单列表截图导入：${fileName}\n第 ${index + 1} 条\n__ROW_TEXT__\n${text}\n__ROW_DATE__\n${dateText}\n__ROW_AMOUNT__\n${amountText}`;
     return { description, date, amount, skip: shouldSkipWechatBillRow(text, amountText, amount), rawText };
@@ -328,6 +403,13 @@ async function recognizeWechatBillRow(imageUrl, index, fileName) {
     console.error(error);
     return { ...fallback, rawText: `${fallback.rawText}\nOCR 失败：${String(error?.message || error)}` };
   }
+}
+
+async function recognizeWechatImageText(imageUrl, workerState) {
+  const blob = dataUrlToBlob(imageUrl);
+  if (!Tesseract.createWorker || !workerState) return Tesseract.recognize(blob, "chi_sim+eng");
+  if (!workerState.worker) workerState.worker = await Tesseract.createWorker("chi_sim+eng");
+  return workerState.worker.recognize(blob);
 }
 
 function dataUrlToBlob(dataUrl) {
@@ -363,6 +445,18 @@ function parseWechatRowDate(text) {
   const match = normalized.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*(?:日)?/) || normalized.match(/(?:^|\D)(\d{1,2})\s+[月\s]?\s*(\d{1,2})(?=\D|$)/);
   if (!match) return "";
   return normalizeDateParts(currentYear, Number(match[1]), Number(match[2]));
+}
+
+function normalizeWechatFutureDate(date) {
+  if (!date) return "";
+  const parsed = new Date(`${date}T00:00:00`);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (parsed.getFullYear() === today.getFullYear() && parsed > today) {
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    return `${parsed.getFullYear()}-${month}-${String(parsed.getDate()).padStart(2, "0")}`;
+  }
+  return date;
 }
 
 function parseWechatRowDescription(text) {
