@@ -108,8 +108,16 @@ def decode_image(data):
     return img
 
 
+def row_to_data_url(row):
+    ok, encoded = cv2.imencode(".jpg", row, [int(cv2.IMWRITE_JPEG_QUALITY), 88])
+    if not ok:
+        return ""
+    raw = base64.b64encode(encoded.tobytes()).decode("ascii")
+    return f"data:image/jpeg;base64,{raw}"
+
+
 def parse_wechat_longshot(data):
-    img = decode_image(data.get("image"))
+    img = data if hasattr(data, "shape") else decode_image(data.get("image"))
     rows = detect_rows(img)
     items = []
     with tempfile.TemporaryDirectory(prefix="wechat_ocr_") as tmp:
@@ -128,6 +136,7 @@ def parse_wechat_longshot(data):
                         "date": date,
                         "description": description,
                         "amount": amount,
+                        "rowImage": row_to_data_url(row),
                         "texts": texts,
                     }
                 )
@@ -157,8 +166,14 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
-            payload = json.loads(self.rfile.read(length).decode("utf-8"))
-            self.send_json(parse_wechat_longshot(payload))
+            body = self.rfile.read(length)
+            content_type = self.headers.get("Content-Type", "")
+            if "application/json" in content_type:
+                payload = json.loads(body.decode("utf-8"))
+                result = parse_wechat_longshot(payload)
+            else:
+                result = parse_wechat_longshot(decode_image(body))
+            self.send_json(result)
         except Exception as exc:
             self.send_json({"ok": False, "error": str(exc)}, 500)
 
