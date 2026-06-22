@@ -147,6 +147,7 @@ async function handleWechatBillScreenshots(fileList) {
   if (!files.length) return setStatus("请选择微信账单列表截图。");
   setStatus(`已接收到 ${files.length} 张微信账单截图，开始切分单行截图...`);
   let total = 0;
+  let localOcrImported = 0;
   let matchedExcelScreenshots = 0;
   for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
     const file = files[fileIndex];
@@ -155,6 +156,7 @@ async function handleWechatBillScreenshots(fileList) {
     if (localParsed) {
       await importLocalWechatLongshotResult(localParsed, file.name);
       total += localParsed.rowCount || localParsed.items.length;
+      localOcrImported += localParsed.items.length;
       renderAll();
       markDirtyAndSave();
       continue;
@@ -217,7 +219,7 @@ async function handleWechatBillScreenshots(fileList) {
   }
   markDirtyAndSave();
   if (wechatShotInput) wechatShotInput.value = "";
-  setStatus(matchedExcelScreenshots ? `已从微信账单截图切出 ${total} 条单行截图，已按微信 Excel 自动匹配 ${matchedExcelScreenshots} 条截图，并使用 Excel 的准确日期和说明。` : `已从微信账单截图切出 ${total} 条单行截图，已先填入金额；说明和日期正在后台自动补识别。`);
+  setStatus(localOcrImported ? `识别完成，请继续上传发票 PDF 或检查明细。已通过本地 RapidOCR 识别 ${localOcrImported}/${total} 条，包含日期、说明、金额和裁切截图。` : matchedExcelScreenshots ? `已从微信账单截图切出 ${total} 条单行截图，已按微信 Excel 自动匹配 ${matchedExcelScreenshots} 条截图，并使用 Excel 的准确日期和说明。` : `已从微信账单截图切出 ${total} 条单行截图，已先填入金额；说明和日期正在后台自动补识别。`);
 }
 
 async function tryLocalWechatLongshotOcr(file) {
@@ -255,7 +257,7 @@ async function importLocalWechatLongshotResultInChunks(result, fileName) {
     renderAll();
     await new Promise((resolve) => setTimeout(resolve, 80));
   }
-  setStatus(`已通过本地 RapidOCR 从 ${fileName} 识别 ${entries.length} 条，包含日期、说明和金额。`);
+  setStatus(`识别完成，请继续上传发票 PDF 或检查明细。已通过本地 RapidOCR 从 ${fileName} 识别 ${entries.length} 条，包含日期、说明、金额和裁切截图。`);
 }
 
 function addLocalWechatLongshotItem(entry, fileName) {
@@ -535,7 +537,7 @@ async function recognizeWechatLongScreenshotDetails(file) {
         const rowIndex = Math.max(0, Math.min(details.length - 1, Math.floor(y / rowHeight)));
         if (/\d{1,2}\s*月\s*\d{1,2}\s*日/.test(text) || /\d{1,2}[:：]\d{2}/.test(text)) {
           details[rowIndex].date = normalizeWechatFutureDate(parseWechatRowDate(text)) || details[rowIndex].date;
-        } else if (/[ -\u4e00-\u9fa5]{2,}/.test(text) && !details[rowIndex].description) {
+        } else if (/[\x00-\x7F\u4e00-\u9fa5]{2,}/.test(text) && !details[rowIndex].description) {
           details[rowIndex].description = cleanProductName(text);
         }
       }
