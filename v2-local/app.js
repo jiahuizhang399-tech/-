@@ -11,8 +11,10 @@ const categoryRules = [
 
 let items = [];
 const draftKey = "reimbursement-draft-v2";
+const wechatLongOcrKey = "wechat-long-ocr-v2";
 let dirty = false;
 let restoringDraft = false;
+let suppressBeforeUnload = false;
 const $ = (selector) => document.querySelector(selector);
 const fileInput = $("#fileInput");
 const dropZone = $("#dropZone");
@@ -87,8 +89,9 @@ imageViewer.addEventListener("click", (event) => { if (event.target === imageVie
 textViewer.addEventListener("click", (event) => { if (event.target === textViewer) closeTextViewer(); });
 pdfViewer.addEventListener("click", (event) => { if (event.target === pdfViewer) closePdfViewer(); });
 document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeImageViewer(); closeTextViewer(); closePdfViewer(); } });
-window.addEventListener("beforeunload", (event) => { if (!dirty || !hasDraftableData()) return; event.preventDefault(); event.returnValue = ""; });
+window.addEventListener("beforeunload", (event) => { if (suppressBeforeUnload || !dirty || !hasDraftableData()) return; event.preventDefault(); event.returnValue = ""; });
 restoreDraft(false);
+setTimeout(resumeWechatLongOcrIfNeeded, 600);
 
 async function handleFiles(fileList) {
   const files = Array.from(fileList || []).filter((file) => file.type.startsWith("image/"));
@@ -144,28 +147,57 @@ async function handleWechatBillScreenshots(fileList) {
   if (!files.length) return setStatus("请选择微信账单列表截图。");
   setStatus(`已接收到 ${files.length} 张微信账单截图，开始切分单行截图...`);
   let total = 0;
+  let matchedExcelScreenshots = 0;
   for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
     const file = files[fileIndex];
     setStatus(`正在切分微信账单截图 ${fileIndex + 1}/${files.length}：${file.name}`);
+    const localParsed = await tryLocalWechatLongshotOcr(file);
+    if (localParsed) {
+      await importLocalWechatLongshotResult(localParsed, file.name);
+      total += localParsed.rowCount || localParsed.items.length;
+      renderAll();
+      markDirtyAndSave();
+      continue;
+    }
     const rowImages = await splitWechatBillScreenshot(file);
     const longShotAmounts = rowImages.length > 30 ? await recognizeWechatLongScreenshotAmounts(file) : [];
+    const excelMatches = rowImages.length > 30 ? matchWechatLongScreenshotWithExcel(longShotAmounts) : [];
+    const longShotDetails = [];
+    const longShotDates = [];
+    const createdLongRows = [];
     for (let index = 0; index < rowImages.length; index += 1) {
       const imageUrl = rowImages[index];
       const presetAmount = longShotAmounts[index] || "";
+      const excelMatch = excelMatches[index] || null;
+      const presetDetail = longShotDetails[index] || {};
       const id = crypto.randomUUID();
       if (rowImages.length > 30 && !presetAmount) continue;
+      if (rowImages.length > 30 && excelMatch?.id) {
+        const matchedItem = items.find((item) => item.id === excelMatch.id);
+        if (matchedItem) {
+          matchedItem.fileName = `${file.name} #${index + 1}`;
+          matchedItem.imageUrl = imageUrl;
+          matchedItem.screenshotPreviewUrl = imageUrl;
+          matchedItem.rawText = `${matchedItem.rawText}\n微信长截图已匹配：${file.name} 第 ${index + 1} 条\n截图金额：${presetAmount}`;
+          matchedExcelScreenshots += 1;
+        }
+        continue;
+      }
+      const presetDescription = excelMatch?.description || presetDetail.description || `微信账单截图第 ${index + 1} 条`;
+      const presetDate = excelMatch?.date || longShotDates[index] || presetDetail.date || "";
+      const cat = guessCategory(normalizeText(presetDescription));
       items.push({
         id,
         fileName: `${file.name} #${index + 1}`,
         imageUrl,
         screenshotPreviewUrl: imageUrl,
-        rawText: `微信账单列表截图导入：${file.name}\n第 ${index + 1} 条。正在 OCR 识别。`,
-        date: "",
-        category: "其他费用",
-        type: "其他费用",
+        rawText: `微信账单列表截图导入：${file.name}\n第 ${index + 1} 条\n说明：${presetDescription}\n日期：${presetDate}\n金额：${presetAmount}${excelMatch ? "\n已按微信 Excel 明细自动匹配日期和说明。" : ""}`,
+        date: presetDate,
+        category: cat.category,
+        type: cat.type,
         amount: presetAmount,
         screenshotAmount: presetAmount,
-        description: `微信账单截图第 ${index + 1} 条`,
+        description: presetDescription,
         invoiceFile: null,
         invoiceFileName: "",
         invoiceFileUrl: "",
@@ -174,14 +206,255 @@ async function handleWechatBillScreenshots(fileList) {
         invoice: "待补",
         source: "微信列表截图",
       });
+      if (rowImages.length > 30) createdLongRows.push({ id, imageUrl, index });
     }
     total += rowImages.length;
     renderAll();
-    if (rowImages.length <= 30) await recognizeWechatBillRowsSequentially(file.name, rowImages.length, false);
+    if (rowImages.length > 30 && !excelMatches.some(Boolean)) {
+      setStatus(`已从微信长截图切出 ${rowImages.length} 行并填入金额。要识别准确日期和说明，请先启动本地 RapidOCR 服务：python3 ocr_server.py`);
+    }
+    else await recognizeWechatBillRowsSequentially(file.name, rowImages.length, false);
   }
   markDirtyAndSave();
   if (wechatShotInput) wechatShotInput.value = "";
-  setStatus(`已从微信账单截图切出 ${total} 条单行截图，完成 OCR 后保留 ${items.filter((item) => item.source === "微信列表截图").length} 条支出记录。`);
+  setStatus(matchedExcelScreenshots ? `已从微信账单截图切出 ${total} 条单行截图，已按微信 Excel 自动匹配 ${matchedExcelScreenshots} 条截图，并使用 Excel 的准确日期和说明。` : `已从微信账单截图切出 ${total} 条单行截图，已先填入金额；说明和日期正在后台自动补识别。`);
+}
+
+async function tryLocalWechatLongshotOcr(file) {
+  try {
+    setStatus(`正在调用本地 RapidOCR 服务识别微信长截图：${file.name}`);
+    const response = await fetch("http://127.0.0.1:8765/api/wechat-longshot", {
+      method: "POST",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+    if (!result || !Array.isArray(result.items) || !result.items.length) return null;
+    setStatus(`本地 RapidOCR 已识别 ${result.items.length}/${result.rowCount || result.items.length} 条微信账单。`);
+    return result;
+  } catch (error) {
+    console.warn("本地 RapidOCR 服务不可用，回退浏览器识别。", error);
+    setStatus("本地 RapidOCR 服务未启动，回退到浏览器金额识别。若要准确日期和说明，请先启动 ocr_server.py。");
+    return null;
+  }
+}
+
+async function importLocalWechatLongshotResult(result, fileName) {
+  await importLocalWechatLongshotResultInChunks(result, fileName);
+}
+
+async function importLocalWechatLongshotResultInChunks(result, fileName) {
+  const entries = result.items || [];
+  for (let start = 0; start < entries.length; start += 15) {
+    setStatus(`正在写入本地 RapidOCR 识别结果 ${Math.min(start + 15, entries.length)}/${entries.length}：${fileName}`);
+    for (const entry of entries.slice(start, start + 15)) {
+      addLocalWechatLongshotItem(entry, fileName);
+    }
+    markDirtyAndSave();
+    renderAll();
+    await new Promise((resolve) => setTimeout(resolve, 80));
+  }
+  setStatus(`已通过本地 RapidOCR 从 ${fileName} 识别 ${entries.length} 条，包含日期、说明和金额。`);
+}
+
+function addLocalWechatLongshotItem(entry, fileName) {
+    const description = entry.description || `微信账单截图第 ${entry.index || items.length + 1} 条`;
+    const cat = guessCategory(normalizeText(description));
+    items.push({
+      id: crypto.randomUUID(),
+      fileName: `${fileName} #${entry.index || items.length + 1}`,
+      imageUrl: entry.rowImage || "",
+      screenshotPreviewUrl: entry.rowImage || "",
+      rawText: `本地 RapidOCR 识别：${fileName}\n第 ${entry.index || ""} 条\n${entry.rawText || ""}`,
+      date: entry.date || "",
+      category: cat.category,
+      type: cat.type,
+      amount: entry.amount || "",
+      screenshotAmount: entry.amount || "",
+      description,
+      invoiceFile: null,
+      invoiceFileName: "",
+      invoiceFileUrl: "",
+      invoiceLink: "",
+      invoiceAmount: "",
+      invoice: "待补",
+      source: "微信长截图RapidOCR",
+    });
+}
+
+function startWechatLongOcrJob(fileName, ids) {
+  const chunks = [];
+  const rowsPerChunk = 5;
+  for (let index = 0; index < ids.length; index += rowsPerChunk) chunks.push(ids.slice(index, index + rowsPerChunk));
+  localStorage.setItem(wechatLongOcrKey, JSON.stringify({ fileName, ids, chunks, chunkIndex: 0, startedAt: new Date().toISOString() }));
+  setStatus(`已先填入金额，共 ${ids.length} 行，将按每段 ${rowsPerChunk} 行切成 ${chunks.length} 段继续识别说明和日期：${fileName}`);
+}
+
+function matchWechatLongScreenshotWithExcel(amounts) {
+  const excelItems = items
+    .filter((item) => item.source === "微信Excel" && item.amount)
+    .map((item) => ({ id: item.id, amount: item.amount, date: item.date, description: item.description, used: false }));
+  if (!excelItems.length) return [];
+  const result = [];
+  let cursor = 0;
+  for (const amount of amounts) {
+    if (!amount) { result.push(null); continue; }
+    let matchIndex = -1;
+    for (let i = cursor; i < excelItems.length; i += 1) {
+      if (!excelItems[i].used && sameMoney(excelItems[i].amount, amount)) { matchIndex = i; break; }
+    }
+    if (matchIndex < 0) {
+      for (let i = 0; i < excelItems.length; i += 1) {
+        if (!excelItems[i].used && sameMoney(excelItems[i].amount, amount)) { matchIndex = i; break; }
+      }
+    }
+    if (matchIndex >= 0) {
+      excelItems[matchIndex].used = true;
+      cursor = Math.max(cursor, matchIndex + 1);
+      result.push({ id: excelItems[matchIndex].id, date: excelItems[matchIndex].date, description: excelItems[matchIndex].description });
+    } else {
+      result.push(null);
+    }
+  }
+  return result;
+}
+
+function sameMoney(a, b) {
+  const left = normalizeAmount(a);
+  const right = normalizeAmount(b);
+  return left && right && Math.abs(left - right) < 0.005;
+}
+
+async function resumeWechatLongOcrIfNeeded() {
+  const raw = localStorage.getItem(wechatLongOcrKey);
+  if (!raw) return;
+  let job;
+  try { job = JSON.parse(raw); } catch { localStorage.removeItem(wechatLongOcrKey); return; }
+  const chunks = Array.isArray(job.chunks) ? job.chunks : [];
+  const chunkIndex = Number(job.chunkIndex || 0);
+  if (!chunks.length || chunkIndex >= chunks.length) { localStorage.removeItem(wechatLongOcrKey); return; }
+  const slice = chunks[chunkIndex] || [];
+  const rows = slice.map((id, offset) => {
+    const item = items.find((entry) => entry.id === id);
+    return item ? { id, imageUrl: item.imageUrl, index: chunkIndex * 5 + offset } : null;
+  }).filter(Boolean);
+  if (!rows.length) { localStorage.removeItem(wechatLongOcrKey); return; }
+  try {
+    setStatus(`正在识别微信长截图第 ${chunkIndex + 1}/${chunks.length} 段，本段 ${rows.length} 行：${job.fileName}`);
+    const details = await recognizeWechatLongRowBatch(rows);
+    for (const detail of details) applyWechatLongOcrDetail(detail);
+    job.chunkIndex = chunkIndex + 1;
+    localStorage.setItem(wechatLongOcrKey, JSON.stringify(job));
+    markDirtyAndSave();
+    renderAll();
+    if (job.chunkIndex >= chunks.length) {
+      localStorage.removeItem(wechatLongOcrKey);
+      setStatus(`微信长截图说明和日期识别完成：${job.fileName}，共 ${chunks.length} 段。`);
+      return;
+    }
+    setStatus(`已完成第 ${job.chunkIndex}/${chunks.length} 段，正在自动刷新释放内存后继续下一段。`);
+    setTimeout(() => { suppressBeforeUnload = true; window.location.reload(); }, 1200);
+  } catch (error) {
+    console.error(error);
+    setStatus(`说明和日期识别中断：${String(error?.message || error)}。刷新页面后会从当前进度继续。`);
+  }
+}
+
+function applyWechatLongOcrDetail(detail) {
+  const item = items.find((entry) => entry.id === detail.id);
+  if (!item) return;
+  if (detail.description) {
+    item.description = detail.description;
+    const cat = guessCategory(normalizeText(detail.description));
+    item.category = cat.category;
+    item.type = cat.type;
+  }
+  if (detail.date) item.date = detail.date;
+  item.rawText = `${item.rawText}\n自动分段识别说明：${detail.description || ""}\n自动分段识别日期：${detail.date || ""}`;
+}
+
+async function recognizeWechatLongRowsInBatches(fileName, rows) {
+  if (!window.Tesseract || !rows.length) return;
+  const batchSize = 1;
+  for (let start = 0; start < rows.length; start += batchSize) {
+    const batch = rows.slice(start, start + batchSize);
+    setStatus(`正在补识别微信长截图说明和日期 ${Math.min(start + batch.length, rows.length)}/${rows.length}：${fileName}`);
+    const details = await recognizeWechatLongRowBatch(batch);
+    for (const detail of details) {
+      const item = items.find((entry) => entry.id === detail.id);
+      if (!item) continue;
+      if (detail.description) {
+        item.description = detail.description;
+        const cat = guessCategory(normalizeText(detail.description));
+        item.category = cat.category;
+        item.type = cat.type;
+      }
+      if (detail.date) item.date = detail.date;
+      item.rawText = `${item.rawText}\n补识别说明：${detail.description || ""}\n补识别日期：${detail.date || ""}`;
+    }
+    markDirtyAndSave();
+    renderAll();
+    const restMs = (start + batch.length) % 10 === 0 ? 10000 : 2500;
+    setStatus(`已补识别微信长截图说明和日期 ${Math.min(start + batch.length, rows.length)}/${rows.length}，${restMs >= 10000 ? "休息 10 秒后继续，防止浏览器卡死。" : "继续处理中。"}`);
+    await new Promise((resolve) => setTimeout(resolve, restMs));
+  }
+  setStatus(`微信长截图说明和日期补识别完成：${fileName}，共 ${rows.length} 条。`);
+}
+
+async function recognizeWechatLongRowBatch(rows) {
+  const rowHeight = 132;
+  const canvas = document.createElement("canvas");
+  canvas.width = 1120;
+  canvas.height = rows.length * rowHeight;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const loaded = await Promise.all(rows.map((row) => loadImage(row.imageUrl)));
+  loaded.forEach((image, index) => {
+    const sourceX = Math.round(image.naturalWidth * 0.145);
+    const sourceY = Math.round(image.naturalHeight * 0.04);
+    const sourceWidth = Math.round(image.naturalWidth * 0.58);
+    const sourceHeight = Math.round(image.naturalHeight * 0.78);
+    ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, index * rowHeight + 10, canvas.width, rowHeight - 20);
+  });
+  thresholdCanvas(ctx, canvas.width, canvas.height, 224);
+  try {
+    const blob = dataUrlToBlob(canvas.toDataURL("image/png"));
+    let result;
+    if (Tesseract.createWorker) {
+      const worker = await Tesseract.createWorker("chi_sim+eng");
+      try {
+        result = await worker.recognize(blob);
+      } finally {
+        await worker.terminate();
+      }
+    } else {
+      result = await Tesseract.recognize(blob, "chi_sim+eng");
+    }
+    const output = rows.map((row) => ({ id: row.id, description: "", date: "" }));
+    const lines = Array.isArray(result.data?.lines) && result.data.lines.length ? result.data.lines : [];
+    for (const line of lines) {
+      const text = cleanWechatOcrLine(line.text);
+      if (!text) continue;
+      const rowIndex = Math.max(0, Math.min(output.length - 1, Math.floor(Number(line.bbox?.y0 ?? 0) / rowHeight)));
+      const date = normalizeWechatFutureDate(parseWechatRowDate(text));
+      if (date) output[rowIndex].date = date;
+      else if (!output[rowIndex].description && /[\u4e00-\u9fa5a-zA-Z]{2,}/.test(text)) output[rowIndex].description = cleanProductName(text);
+    }
+    return output;
+  } catch (error) {
+    console.error(error);
+    return rows.map((row) => ({ id: row.id, description: "", date: "" }));
+  }
+}
+
+function cleanWechatOcrLine(value) {
+  return String(value || "")
+    .replace(/[|｜]/g, "")
+    .replace(/[﹣－—–]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 async function recognizeWechatLongScreenshotAmounts(file) {
@@ -213,6 +486,129 @@ async function recognizeWechatLongScreenshotAmounts(file) {
     }
     while (amounts.length < bounds.length) amounts.push("");
     return amounts.slice(0, bounds.length);
+  } catch (error) {
+    console.error(error);
+    return [];
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function recognizeWechatLongScreenshotDetails(file) {
+  if (!window.Tesseract) return [];
+  const url = URL.createObjectURL(file);
+  try {
+    const image = await loadImage(url);
+    const bounds = detectWechatBillRowBounds(image);
+    if (!bounds.length) return [];
+    const rowHeight = 132;
+    const sourceX = Math.round(image.naturalWidth * 0.145);
+    const sourceWidth = Math.round(image.naturalWidth * 0.56);
+    const canvas = document.createElement("canvas");
+    canvas.width = 1120;
+    canvas.height = bounds.length * rowHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    bounds.forEach((bound, index) => {
+      const top = Math.max(0, bound.top + Math.round(bound.height * 0.06));
+      const cropHeight = Math.round(bound.height * 0.72);
+      ctx.drawImage(image, sourceX, top, sourceWidth, cropHeight, 0, index * rowHeight + 10, canvas.width, rowHeight - 20);
+    });
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < pixels.data.length; i += 4) {
+      const gray = pixels.data[i] * 0.299 + pixels.data[i + 1] * 0.587 + pixels.data[i + 2] * 0.114;
+      const value = gray < 214 ? 0 : 255;
+      pixels.data[i] = value;
+      pixels.data[i + 1] = value;
+      pixels.data[i + 2] = value;
+    }
+    ctx.putImageData(pixels, 0, 0);
+    const result = await Tesseract.recognize(dataUrlToBlob(canvas.toDataURL("image/jpeg", 0.95)), "chi_sim+eng");
+    const details = Array.from({ length: bounds.length }, () => ({ description: "", date: "" }));
+    const lines = Array.isArray(result.data?.lines) && result.data.lines.length ? result.data.lines : [];
+    if (lines.length) {
+      for (const line of lines) {
+        const text = String(line.text || "").trim();
+        if (!text) continue;
+        const y = Number(line.bbox?.y0 ?? line.bbox?.y ?? 0);
+        const rowIndex = Math.max(0, Math.min(details.length - 1, Math.floor(y / rowHeight)));
+        if (/\d{1,2}\s*月\s*\d{1,2}\s*日/.test(text) || /\d{1,2}[:：]\d{2}/.test(text)) {
+          details[rowIndex].date = normalizeWechatFutureDate(parseWechatRowDate(text)) || details[rowIndex].date;
+        } else if (/[ -\u4e00-\u9fa5]{2,}/.test(text) && !details[rowIndex].description) {
+          details[rowIndex].description = cleanProductName(text);
+        }
+      }
+    } else {
+      const textLines = String(result.data?.text || "").split(/\n+/).map((line) => line.trim()).filter(Boolean);
+      let rowIndex = 0;
+      for (const text of textLines) {
+        if (rowIndex >= details.length) break;
+        if (/\d{1,2}\s*月\s*\d{1,2}\s*日|\d{1,2}[:：]\d{2}/.test(text)) {
+          details[rowIndex].date = normalizeWechatFutureDate(parseWechatRowDate(text)) || details[rowIndex].date;
+          rowIndex += 1;
+        } else if (!details[rowIndex].description) {
+          details[rowIndex].description = cleanProductName(text);
+        }
+      }
+    }
+    return details;
+  } catch (error) {
+    console.error(error);
+    return [];
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function recognizeWechatLongScreenshotDates(file) {
+  if (!window.Tesseract) return [];
+  const url = URL.createObjectURL(file);
+  try {
+    const image = await loadImage(url);
+    const bounds = detectWechatBillRowBounds(image);
+    if (!bounds.length) return [];
+    const rowHeight = 92;
+    const sourceX = Math.round(image.naturalWidth * 0.12);
+    const sourceWidth = Math.round(image.naturalWidth * 0.42);
+    const canvas = document.createElement("canvas");
+    canvas.width = 720;
+    canvas.height = bounds.length * rowHeight;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    bounds.forEach((bound, index) => {
+      const top = Math.max(0, bound.top + Math.round(bound.height * 0.40));
+      const cropHeight = Math.round(bound.height * 0.34);
+      ctx.drawImage(image, sourceX, top, sourceWidth, cropHeight, 0, index * rowHeight + 12, canvas.width, rowHeight - 24);
+    });
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < pixels.data.length; i += 4) {
+      const gray = pixels.data[i] * 0.299 + pixels.data[i + 1] * 0.587 + pixels.data[i + 2] * 0.114;
+      const value = gray < 226 ? 0 : 255;
+      pixels.data[i] = value;
+      pixels.data[i + 1] = value;
+      pixels.data[i + 2] = value;
+    }
+    ctx.putImageData(pixels, 0, 0);
+    const result = await Tesseract.recognize(dataUrlToBlob(canvas.toDataURL("image/png")), "chi_sim+eng", { tessedit_char_whitelist: "0123456789年月日:： " });
+    const dates = Array.from({ length: bounds.length }, () => "");
+    const lines = Array.isArray(result.data?.lines) && result.data.lines.length ? result.data.lines : [];
+    if (lines.length) {
+      for (const line of lines) {
+        const text = String(line.text || "").trim();
+        const date = normalizeWechatFutureDate(parseWechatRowDate(text));
+        if (!date) continue;
+        const y = Number(line.bbox?.y0 ?? line.bbox?.y ?? 0);
+        const rowIndex = Math.max(0, Math.min(dates.length - 1, Math.floor(y / rowHeight)));
+        dates[rowIndex] = date;
+      }
+    } else {
+      String(result.data?.text || "").split(/\n+/).map((line) => line.trim()).filter(Boolean).forEach((line, index) => {
+        if (index < dates.length) dates[index] = normalizeWechatFutureDate(parseWechatRowDate(line));
+      });
+    }
+    return dates;
   } catch (error) {
     console.error(error);
     return [];
@@ -410,6 +806,108 @@ async function recognizeWechatImageText(imageUrl, workerState) {
   if (!Tesseract.createWorker || !workerState) return Tesseract.recognize(blob, "chi_sim+eng");
   if (!workerState.worker) workerState.worker = await Tesseract.createWorker("chi_sim+eng");
   return workerState.worker.recognize(blob);
+}
+
+async function recognizeWechatLongScreenshotDetailsChunked(file) {
+  if (!window.Tesseract) return [];
+  const url = URL.createObjectURL(file);
+  try {
+    const image = await loadImage(url);
+    const bounds = detectWechatBillRowBounds(image);
+    const details = Array.from({ length: bounds.length }, () => ({ description: "", date: "" }));
+    for (let start = 0; start < bounds.length; start += 15) {
+      const chunk = bounds.slice(start, start + 15);
+      const rowHeight = 132;
+      const canvas = document.createElement("canvas");
+      canvas.width = 1120;
+      canvas.height = chunk.length * rowHeight;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const sourceX = Math.round(image.naturalWidth * 0.145);
+      const sourceWidth = Math.round(image.naturalWidth * 0.56);
+      chunk.forEach((bound, index) => {
+        const top = Math.max(0, bound.top + Math.round(bound.height * 0.06));
+        const cropHeight = Math.round(bound.height * 0.72);
+        ctx.drawImage(image, sourceX, top, sourceWidth, cropHeight, 0, index * rowHeight + 10, canvas.width, rowHeight - 20);
+      });
+      thresholdCanvas(ctx, canvas.width, canvas.height, 214);
+      const result = await Tesseract.recognize(dataUrlToBlob(canvas.toDataURL("image/png")), "chi_sim+eng");
+      const lines = Array.isArray(result.data?.lines) && result.data.lines.length ? result.data.lines : [];
+      for (const line of lines) {
+        const text = String(line.text || "").trim();
+        if (!text) continue;
+        const rowIndex = Math.max(0, Math.min(details.length - 1, start + Math.floor(Number(line.bbox?.y0 ?? 0) / rowHeight)));
+        if (/\d{1,2}\s*月\s*\d{1,2}\s*日/.test(text) || /\d{1,2}[:：]\d{2}/.test(text)) {
+          details[rowIndex].date = normalizeWechatFutureDate(parseWechatRowDate(text)) || details[rowIndex].date;
+        } else if (!details[rowIndex].description && /[\u4e00-\u9fa5a-zA-Z]{2,}/.test(text)) {
+          details[rowIndex].description = cleanProductName(text);
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return details;
+  } catch (error) {
+    console.error(error);
+    return [];
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function recognizeWechatLongScreenshotDatesChunked(file) {
+  if (!window.Tesseract) return [];
+  const url = URL.createObjectURL(file);
+  try {
+    const image = await loadImage(url);
+    const bounds = detectWechatBillRowBounds(image);
+    const dates = Array.from({ length: bounds.length }, () => "");
+    for (let start = 0; start < bounds.length; start += 15) {
+      const chunk = bounds.slice(start, start + 15);
+      const rowHeight = 92;
+      const canvas = document.createElement("canvas");
+      canvas.width = 720;
+      canvas.height = chunk.length * rowHeight;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const sourceX = Math.round(image.naturalWidth * 0.145);
+      const sourceWidth = Math.round(image.naturalWidth * 0.38);
+      chunk.forEach((bound, index) => {
+        const top = Math.max(0, bound.top + Math.round(bound.height * 0.40));
+        const cropHeight = Math.round(bound.height * 0.34);
+        ctx.drawImage(image, sourceX, top, sourceWidth, cropHeight, 0, index * rowHeight + 12, canvas.width, rowHeight - 24);
+      });
+      thresholdCanvas(ctx, canvas.width, canvas.height, 226);
+      const result = await Tesseract.recognize(dataUrlToBlob(canvas.toDataURL("image/png")), "chi_sim+eng", { tessedit_char_whitelist: "0123456789年月日:： " });
+      const lines = Array.isArray(result.data?.lines) && result.data.lines.length ? result.data.lines : [];
+      for (const line of lines) {
+        const date = normalizeWechatFutureDate(parseWechatRowDate(String(line.text || "")));
+        if (!date) continue;
+        const rowIndex = Math.max(0, Math.min(dates.length - 1, start + Math.floor(Number(line.bbox?.y0 ?? 0) / rowHeight)));
+        dates[rowIndex] = date;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return dates;
+  } catch (error) {
+    console.error(error);
+    return [];
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function thresholdCanvas(ctx, width, height, threshold) {
+  const pixels = ctx.getImageData(0, 0, width, height);
+  for (let i = 0; i < pixels.data.length; i += 4) {
+    const gray = pixels.data[i] * 0.299 + pixels.data[i + 1] * 0.587 + pixels.data[i + 2] * 0.114;
+    const value = gray < threshold ? 0 : 255;
+    pixels.data[i] = value;
+    pixels.data[i + 1] = value;
+    pixels.data[i + 2] = value;
+  }
+  ctx.putImageData(pixels, 0, 0);
 }
 
 function dataUrlToBlob(dataUrl) {
@@ -1110,10 +1608,10 @@ function renderAll() { renderTable(); renderSummary(); renderReportPreview(); }
 function markDirtyAndSave() { if (restoringDraft) return; dirty = true; saveDraft(false); }
 function hasDraftableData() { return items.length || $("#projectInput").value.trim() || $("#personInput").value.trim(); }
 function draftPayload() { return { version: 2, savedAt: new Date().toISOString(), project: $("#projectInput").value, person: $("#personInput").value, items: items.map(serializeItemForDraft) }; }
-function serializeItemForDraft(item) { return { id: item.id, fileName: item.fileName, imageUrl: isDataUrl(item.imageUrl) ? item.imageUrl : "", screenshotPreviewUrl: isDataUrl(item.screenshotPreviewUrl) ? item.screenshotPreviewUrl : "", rawText: item.rawText, date: item.date, category: item.category, type: item.type, amount: item.amount, screenshotAmount: item.screenshotAmount, description: item.description, invoiceFileName: item.invoiceFileName, invoiceAmount: item.invoiceAmount, invoiceLink: item.invoiceLink, invoice: item.invoice }; }
+function serializeItemForDraft(item) { return { id: item.id, fileName: item.fileName, imageUrl: isDataUrl(item.imageUrl) ? item.imageUrl : "", screenshotPreviewUrl: isDataUrl(item.screenshotPreviewUrl) ? item.screenshotPreviewUrl : "", rawText: item.rawText, date: item.date, category: item.category, type: item.type, amount: item.amount, screenshotAmount: item.screenshotAmount, description: item.description, invoiceFileName: item.invoiceFileName, invoiceAmount: item.invoiceAmount, invoiceLink: item.invoiceLink, invoice: item.invoice, source: item.source || "" }; }
 function saveDraft(showStatus) { try { if (!hasDraftableData()) localStorage.removeItem(draftKey); else localStorage.setItem(draftKey, JSON.stringify(draftPayload())); if (showStatus) setStatus("已保存当前状态到本机浏览器。刷新后会自动恢复。"); } catch (error) { console.error(error); if (showStatus) setStatus("保存失败：浏览器本地存储空间可能不足。可先导出文件备份。"); } }
 function restoreDraft(showStatus) { const raw = localStorage.getItem(draftKey); if (!raw) { if (showStatus) setStatus("没有可恢复的草稿。"); renderAll(); return; } try { restoringDraft = true; const draft = JSON.parse(raw); items.forEach(revokeInvoiceUrl); $("#projectInput").value = draft.project || ""; $("#personInput").value = draft.person || ""; items = (draft.items || []).map(restoreDraftItem); dirty = false; renderAll(); if (showStatus) setStatus(`已恢复本机草稿${draft.savedAt ? `（保存于 ${formatDraftTime(draft.savedAt)}）` : ""}。PDF 原文件需重新上传后才能合并导出。`); else setStatus(`已自动恢复上次草稿${draft.savedAt ? `（${formatDraftTime(draft.savedAt)}）` : ""}。PDF 原文件需重新上传后才能合并导出。`); } catch (error) { console.error(error); if (showStatus) setStatus("草稿恢复失败，可能已损坏。可清空草稿后重新上传。"); } finally { restoringDraft = false; } }
-function restoreDraftItem(item) { return { id: item.id || crypto.randomUUID(), fileName: item.fileName || "已恢复截图", imageUrl: item.imageUrl || "", screenshotPreviewUrl: item.screenshotPreviewUrl || item.imageUrl || "", rawText: item.rawText || "由本机草稿恢复。", date: item.date || "", category: categories.includes(item.category) ? item.category : "其他费用", type: item.type || "其他费用", amount: item.amount || "", screenshotAmount: item.screenshotAmount || "", description: item.description || "", invoiceFile: null, invoiceFileName: item.invoiceFileName || "", invoiceFileUrl: "", invoiceLink: item.invoiceLink || "", invoiceAmount: item.invoiceAmount || "", invoice: item.invoice || "待补" }; }
+function restoreDraftItem(item) { return { id: item.id || crypto.randomUUID(), fileName: item.fileName || "已恢复截图", imageUrl: item.imageUrl || "", screenshotPreviewUrl: item.screenshotPreviewUrl || item.imageUrl || "", rawText: item.rawText || "由本机草稿恢复。", date: item.date || "", category: categories.includes(item.category) ? item.category : "其他费用", type: item.type || "其他费用", amount: item.amount || "", screenshotAmount: item.screenshotAmount || "", description: item.description || "", invoiceFile: null, invoiceFileName: item.invoiceFileName || "", invoiceFileUrl: "", invoiceLink: item.invoiceLink || "", invoiceAmount: item.invoiceAmount || "", invoice: item.invoice || "待补", source: item.source || "" }; }
 function clearDraft() { if (!localStorage.getItem(draftKey)) return setStatus("当前没有已保存的草稿。"); if (!confirm("确认清空本机保存的草稿吗？当前页面数据不会被删除。")) return; localStorage.removeItem(draftKey); dirty = false; setStatus("已清空本机草稿。当前页面数据仍保留。"); }
 function isDataUrl(value) { return /^data:image\//.test(String(value || "")); }
 function formatDraftTime(value) { const date = new Date(value); return Number.isFinite(date.getTime()) ? date.toLocaleString("zh-CN", { hour12: false }) : value; }
