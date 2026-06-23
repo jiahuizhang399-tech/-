@@ -1136,21 +1136,26 @@ async function handleInvoiceFiles(fileList) {
   if (!window.pdfjsLib) return setStatus("PDF 解析组件还没有加载完成，请稍后再上传发票。");
   window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
   let matched = 0;
+  let reuploaded = 0;
   const failed = [];
   for (const file of files) {
     setStatus(`正在识别发票：${file.name}`);
     try {
       const amounts = await getInvoiceAmounts(file);
-      if (amounts.length && matchInvoiceToItem(file, amounts)) matched += 1;
-      else failed.push(`${file.name}: 发票金额 ${amounts.join("、") || "未识别"}，未找到同金额明细`);
+      const result = matchInvoiceToItem(file, amounts);
+      if (result === "reupload") reuploaded += 1;
+      else if (result === "matched") matched += 1;
+      else failed.push(`${file.name}: 发票金额 ${amounts.join("、") || "未识别"}，${amounts.length ? "未找到同金额明细" : "也没有同名需重传记录"}`);
     } catch (error) {
       console.error(error);
       failed.push(`${file.name}: 解析失败`);
     }
   }
   invoiceBatchInput.value = "";
+  if (matched || reuploaded) markDirtyAndSave();
   renderAll();
-  setStatus(failed.length ? `发票处理完成：已匹配 ${matched} 份，未匹配 ${failed.length} 份。${failed.slice(0, 3).join("；")}` : `发票处理完成：已匹配 ${matched} 份。`);
+  const summary = `发票处理完成：新匹配 ${matched} 份，重传补回 ${reuploaded} 份，未匹配 ${failed.length} 份。`;
+  setStatus(failed.length ? `${summary} 未匹配列表：${failed.join("；")}` : summary);
 }
 
 function addManualItem() {
@@ -1590,16 +1595,17 @@ function findInvoiceTotalAmount(text) {
   for (const keyword of ["价税合计", "税价合计", "合计小写", "小写", "发票金额"]) {
     let index = text.indexOf(keyword);
     while (index >= 0) {
-      windows.push(text.slice(Math.max(0, index - 80), index + 320));
+      windows.push(text.slice(Math.max(0, index - 120), index + 520));
       index = text.indexOf(keyword, index + keyword.length);
     }
   }
 
   for (const windowText of windows) {
     const precisePatterns = [
+      /[零〇壹贰叁肆伍陆柒捌玖拾佰仟万亿圆元角分整]{2,}\s*[¥￥]\s*(\d{1,6}(?:\.\d{1,2})?)/,
+      /(?:价税合计|税价合计)[\s\S]{0,360}[零〇壹贰叁肆伍陆柒捌玖拾佰仟万亿圆元角分整]{2,}\s*[¥￥]\s*(\d{1,6}(?:\.\d{1,2})?)/,
+      /(?:价税合计|税价合计)[\s\S]{0,260}[（(]\s*小写\s*[）)]\s*[¥￥]?\s*(\d{1,6}(?:\.\d{1,2})?)/,
       /[（(]\s*小写\s*[）)]\s*[¥￥]?\s*(\d{1,6}(?:\.\d{1,2})?)/,
-      /(?:价税合计|税价合计)[\s\S]{0,180}[（(]\s*小写\s*[）)]\s*[¥￥]?\s*(\d{1,6}(?:\.\d{1,2})?)/,
-      /(?:价税合计|税价合计)[\s\S]{0,80}[零〇壹贰叁肆伍陆柒捌玖拾佰仟万亿圆元角分整]+\s*[¥￥]\s*(\d{1,6}(?:\.\d{1,2})?)/,
     ];
     for (const pattern of precisePatterns) {
       const match = windowText.match(pattern);
@@ -1636,12 +1642,15 @@ function findInvoiceFileNameAmount(text) {
   }
   return 0;
 }
-function matchInvoiceToItem(file, amounts) { const target = findInvoiceTarget(amounts); if (!target) return false; addInvoiceToItem(target, file, amounts.find((amount) => sameAmount(target.amount, amount)) || amounts[0] || ""); return true; }
+function matchInvoiceToItem(file, amounts) { const reuploadTarget = findInvoiceReuploadTarget(file); if (reuploadTarget) { replaceInvoiceEntry(reuploadTarget, file, amounts[0] || ""); return "reupload"; } const target = findInvoiceTarget(amounts); if (!target) return "failed"; addInvoiceToItem(target, file, amounts.find((amount) => sameAmount(target.amount, amount)) || amounts[0] || ""); return "matched"; }
 function findInvoiceTarget(amounts) { const amountList = Array.isArray(amounts) ? amounts : [amounts]; return items.find((item) => !invoiceEntries(item).length && amountList.some((amount) => sameAmount(item.amount, amount))); }
 function sameAmount(left, right) { return Math.abs(Number(left || 0) - Number(right || 0)) < .01; }
 function invoiceEntries(item) { if (Array.isArray(item.invoiceFiles) && item.invoiceFiles.length) return item.invoiceFiles; return item.invoiceFileName ? [{ file: item.invoiceFile || null, name: item.invoiceFileName, url: item.invoiceFileUrl || "", amount: item.invoiceAmount || "" }] : []; }
 function syncInvoiceLegacyFields(item) { const first = invoiceEntries(item)[0]; item.invoiceFile = first?.file || null; item.invoiceFileName = invoiceEntries(item).map((entry) => entry.name).filter(Boolean).join("、"); item.invoiceFileUrl = first?.url || ""; item.invoiceAmount = invoiceEntries(item).map((entry) => entry.amount).filter(Boolean).join("、"); }
-function addInvoiceToItem(item, file, amount = "") { item.invoiceFiles = invoiceEntries(item).filter((entry) => entry.url || entry.file || entry.name); item.invoiceFiles.push({ file, name: file.name, url: URL.createObjectURL(file), amount }); syncInvoiceLegacyFields(item); }
+function normalizedInvoiceName(name) { return String(name || "").trim().toLowerCase(); }
+function findInvoiceReuploadTarget(file) { const fileName = normalizedInvoiceName(file?.name); if (!fileName) return null; return items.find((item) => invoiceEntries(item).some((entry) => normalizedInvoiceName(entry.name) === fileName && !entry.url && !entry.file)); }
+function replaceInvoiceEntry(item, file, amount = "") { const fileName = normalizedInvoiceName(file?.name); const entries = invoiceEntries(item).filter((entry) => entry.url || entry.file || entry.name); let replaced = false; item.invoiceFiles = entries.map((entry) => { if (!replaced && normalizedInvoiceName(entry.name) === fileName && !entry.url && !entry.file) { replaced = true; return { file, name: file.name, url: URL.createObjectURL(file), amount: amount || entry.amount || "" }; } return entry; }); if (!replaced) item.invoiceFiles.push({ file, name: file.name, url: URL.createObjectURL(file), amount }); syncInvoiceLegacyFields(item); }
+function addInvoiceToItem(item, file, amount = "") { const fileName = normalizedInvoiceName(file?.name); if (invoiceEntries(item).some((entry) => normalizedInvoiceName(entry.name) === fileName && !entry.url && !entry.file)) return replaceInvoiceEntry(item, file, amount); item.invoiceFiles = invoiceEntries(item).filter((entry) => entry.url || entry.file || entry.name); item.invoiceFiles.push({ file, name: file.name, url: URL.createObjectURL(file), amount }); syncInvoiceLegacyFields(item); }
 function revokeInvoiceUrl(item) { for (const entry of invoiceEntries(item)) if (entry.url) URL.revokeObjectURL(entry.url); if (item.invoiceFileUrl && !invoiceEntries(item).some((entry) => entry.url === item.invoiceFileUrl)) URL.revokeObjectURL(item.invoiceFileUrl); }
 
 function renderAll() { renderTable(); renderSummary(); renderReportPreview(); }
@@ -1725,10 +1734,10 @@ function reportOrderedItems() { return categories.flatMap((category) => sortedIt
 function dateSortValue(value) { const date = Date.parse(String(value || "").replace(/\//g, "-")); return Number.isFinite(date) ? date : Number.MAX_SAFE_INTEGER; }
 function exportRows() { syncTableControlsToItems(); const project = $("#projectInput").value.trim(); const person = $("#personInput").value.trim(); return sortedItems().map((item, index) => ({ 序号: index + 1, 关联项目编号: project, 报销人: person, 日期: item.date, 一级费用类别: item.category, 费用类型: item.type, 金额: Number(item.amount || 0), 费用说明: item.description, 是否有发票: hasInvoice(item), 发票PDF文件名: invoiceEntries(item).map((entry) => entry.name).filter(Boolean).join("、"), 发票识别金额: invoiceEntries(item).map((entry) => entry.amount).filter(Boolean).join("、"), 发票链接: item.invoiceLink || "", 付款截图文件名: item.fileName, 备注: "由付款截图识别整理" })); }
 function exportCsv() { if (!validateExportMeta()) return; if (!items.length) return setStatus("没有可导出的明细。"); const rows = exportRows(); const headers = Object.keys(rows[0]); const csv = [headers.join(",")].concat(rows.map((row) => headers.map((key) => csvCell(row[key])).join(","))).join("\n"); downloadBlob(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }), `${exportBaseFileName("报销明细")}-报销明细.csv`); }
-function exportXlsx() { if (!validateExportMeta()) return; if (!items.length) return setStatus("没有可导出的明细。"); const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(buildTemplateRows()); ws["!merges"] = [{ s: { r: 1, c: 2 }, e: { r: 1, c: 3 } }]; ws["!cols"] = [{ wch: 9.16 }, { wch: 16.66 }, { wch: 11.83 }, { wch: 11 }, { wch: 88.83 }, { hidden: true }]; ws["!rows"] = Array.from({ length: 84 }, (_, index) => ({ hpt: index === 0 ? 35.25 : 18 })); applyTemplateSheetStyle(ws); XLSX.utils.book_append_sheet(wb, ws, "Sheet1"); const fileName = `${exportBaseFileName("报销明细")}-报销明细.xlsx`; XLSX.writeFile(wb, fileName); markExportDone(fileName); }
+function exportXlsx() { if (!validateExportMeta()) return; if (!items.length) return setStatus("没有可导出的明细。"); const wb = XLSX.utils.book_new(); const rows = buildTemplateRows(); const ws = XLSX.utils.aoa_to_sheet(rows); ws["!merges"] = [{ s: { r: 1, c: 2 }, e: { r: 1, c: 3 } }]; ws["!cols"] = [{ wch: 9.16 }, { wch: 16.66 }, { wch: 11.83 }, { wch: 11 }, { wch: 88.83 }, { hidden: true }]; ws["!rows"] = Array.from({ length: rows.length }, (_, index) => ({ hpt: index === 0 ? 35.25 : 18 })); applyTemplateSheetStyle(ws); XLSX.utils.book_append_sheet(wb, ws, "Sheet1"); const fileName = `${exportBaseFileName("报销明细")}-报销明细.xlsx`; XLSX.writeFile(wb, fileName); markExportDone(fileName); }
 
 function buildTemplateRows() {
-  const rows = Array.from({ length: 84 }, () => Array(6).fill(null));
+  const rows = Array.from({ length: 10 }, () => Array(6).fill(null));
   rows[1][1] = "关联项目编号";
   rows[1][2] = $("#projectInput").value.trim();
   rows[2][1] = "费用类别";
@@ -1736,37 +1745,44 @@ function buildTemplateRows() {
   rows[2][3] = "发票金额";
 
   const config = [
-    { category: "交通费", title: "交通费", titleRow: 10, headerRow: 11, startRow: 12, endRow: 21, sumRow: 22, totalRow: 3, note: "费用说明（需说明该笔费用如何产生，比如私车公用的起始地点和行驶里程、停车时间、高速费的起始地点等）" },
-    { category: "差旅费", title: "差旅费", titleRow: 24, headerRow: 25, startRow: 26, endRow: 37, sumRow: 38, totalRow: 4, note: "费用说明（住宿费需说明几人几间房几晚等）" },
-    { category: "餐费", title: "餐费", titleRow: 40, headerRow: 41, startRow: 42, endRow: 51, sumRow: 52, totalRow: 5, note: "费用说明（需说明几人用餐及用餐场景）" },
-    { category: "物料费", title: "物料采购", titleRow: 55, headerRow: 56, startRow: 57, endRow: 66, sumRow: 67, totalRow: 6, note: "费用说明（需说明采购原因及用途）" },
-    { category: "其他费用", title: "其他费用", titleRow: 71, headerRow: 72, startRow: 73, endRow: 82, sumRow: 83, totalRow: 7, note: "费用说明" },
+    { category: "交通费", title: "交通费", totalRow: 3, note: "费用说明（需说明该笔费用如何产生，比如私车公用的起始地点和行驶里程、停车时间、高速费的起始地点等）" },
+    { category: "差旅费", title: "差旅费", totalRow: 4, note: "费用说明（住宿费需说明几人几间房几晚等）" },
+    { category: "餐费", title: "餐费", totalRow: 5, note: "费用说明（需说明几人用餐及用餐场景）" },
+    { category: "物料费", title: "物料采购", totalRow: 6, note: "费用说明（需说明采购原因及用途）" },
+    { category: "其他费用", title: "其他费用", totalRow: 7, note: "费用说明" },
   ];
 
   for (const block of config) {
-    const matched = sortedItems(items.filter((item) => item.category === block.category)).slice(0, block.endRow - block.startRow + 1);
+    const matched = sortedItems(items.filter((item) => item.category === block.category));
     const blockAmount = sumAmount(matched);
     const blockInvoiceAmount = sumInvoiceAmount(matched);
+    const titleRow = rows.length;
+    const headerRow = titleRow + 1;
+    const startRow = titleRow + 2;
+    const detailRows = Math.max(1, matched.length);
+    const sumRow = startRow + detailRows;
+    while (rows.length <= sumRow) rows.push(Array(6).fill(null));
     rows[block.totalRow][1] = `${block.category}合计`;
-    rows[block.totalRow][2] = formulaCell(`D${block.sumRow + 1}`, blockAmount);
-    rows[block.totalRow][3] = formulaCell(`F${block.sumRow + 1}`, blockInvoiceAmount);
-    rows[block.titleRow][1] = block.title;
-    rows[block.headerRow][1] = "时间";
-    rows[block.headerRow][2] = "费用类型";
-    rows[block.headerRow][3] = "金额";
-    rows[block.headerRow][4] = block.note;
+    rows[block.totalRow][2] = formulaCell(`D${sumRow + 1}`, blockAmount);
+    rows[block.totalRow][3] = formulaCell(`F${sumRow + 1}`, blockInvoiceAmount);
+    rows[titleRow][1] = block.title;
+    rows[headerRow][1] = "时间";
+    rows[headerRow][2] = "费用类型";
+    rows[headerRow][3] = "金额";
+    rows[headerRow][4] = block.note;
 
     matched.forEach((item, index) => {
-      const row = rows[block.startRow + index];
+      const row = rows[startRow + index];
       row[1] = item.date;
       row[2] = item.type;
       row[3] = Number(item.amount || 0);
       row[4] = item.description;
       row[5] = invoiceEntries(item).reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
     });
-    rows[block.sumRow][1] = "合计";
-    rows[block.sumRow][3] = formulaCell(`SUM(D${block.startRow + 1}:D${block.endRow + 1})`, blockAmount);
-    rows[block.sumRow][5] = formulaCell(`SUM(F${block.startRow + 1}:F${block.endRow + 1})`, blockInvoiceAmount);
+    rows[sumRow][1] = "合计";
+    rows[sumRow][3] = formulaCell(`SUM(D${startRow + 1}:D${sumRow})`, blockAmount);
+    rows[sumRow][5] = formulaCell(`SUM(F${startRow + 1}:F${sumRow})`, blockInvoiceAmount);
+    rows.push(Array(6).fill(null));
   }
 
   rows[8][1] = "合计";
