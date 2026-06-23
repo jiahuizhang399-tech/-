@@ -152,7 +152,8 @@ async function handleWechatBillScreenshots(fileList) {
   for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
     const file = files[fileIndex];
     setStatus(`正在切分微信账单截图 ${fileIndex + 1}/${files.length}：${file.name}`);
-    const localParsed = await tryLocalWechatLongshotOcr(file);
+    const useLocalOcr = await isWechatLongshotFile(file);
+    const localParsed = useLocalOcr ? await tryLocalWechatLongshotOcr(file) : null;
     if (localParsed) {
       await importLocalWechatLongshotResult(localParsed, file.name);
       total += localParsed.rowCount || localParsed.items.length;
@@ -239,6 +240,21 @@ async function tryLocalWechatLongshotOcr(file) {
     console.warn("本地 RapidOCR 服务不可用，回退浏览器识别。", error);
     setStatus("本地 RapidOCR 服务未启动，回退到浏览器金额识别。若要准确日期和说明，请先启动 ocr_server.py。");
     return null;
+  }
+}
+
+async function isWechatLongshotFile(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const image = await loadImage(url);
+    const width = image.naturalWidth || 1;
+    const height = image.naturalHeight || 1;
+    return height / width >= 4 || height >= 6000;
+  } catch (error) {
+    console.warn("无法判断微信截图尺寸，按普通截图处理。", error);
+    return false;
+  } finally {
+    URL.revokeObjectURL(url);
   }
 }
 
