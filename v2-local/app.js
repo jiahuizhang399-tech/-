@@ -113,7 +113,7 @@ async function handleFiles(fileList) {
       setStatus(`OCR 识别失败：${file.name}。已创建空白行，可手动填写。`);
     }
     const parsed = parsePaymentText(text, file.name);
-    items.push({ id: crypto.randomUUID(), fileName: file.name, imageUrl, screenshotPreviewUrl, rawText: `${text}\n__AMOUNT_EXPLAIN__ ${explainPaymentAmount(text)}`, screenshotAmount: parsed.amount, invoiceFile: null, invoiceFileName: "", invoiceFileUrl: "", invoiceLink: "", invoiceAmount: "", ...parsed });
+    items.push({ id: crypto.randomUUID(), sortOrder: nextSortOrder(), fileName: file.name, imageUrl, screenshotPreviewUrl, rawText: `${text}\n__AMOUNT_EXPLAIN__ ${explainPaymentAmount(text)}`, screenshotAmount: parsed.amount, invoiceFile: null, invoiceFileName: "", invoiceFileUrl: "", invoiceLink: "", invoiceAmount: "", ...parsed });
     markDirtyAndSave();
     renderAll();
   }
@@ -191,6 +191,7 @@ async function handleWechatBillScreenshots(fileList) {
       const cat = guessCategory(normalizeText(presetDescription));
       items.push({
         id,
+        sortOrder: nextSortOrder(),
         fileName: `${file.name} #${index + 1}`,
         imageUrl,
         screenshotPreviewUrl: imageUrl,
@@ -281,6 +282,7 @@ function addLocalWechatLongshotItem(entry, fileName) {
     const cat = guessCategory(normalizeText(description));
     items.push({
       id: crypto.randomUUID(),
+      sortOrder: nextSortOrder(),
       fileName: `${fileName} #${entry.index || items.length + 1}`,
       imageUrl: entry.rowImage || "",
       screenshotPreviewUrl: entry.rowImage || "",
@@ -1000,6 +1002,7 @@ function importWechatBillRows(rows, sourceFileName) {
     const cat = guessCategory(normalizeText(`${description} ${type}`));
     importedItems.push({
       id: crypto.randomUUID(),
+      sortOrder: nextSortOrder() + importedItems.length,
       fileName: "",
       imageUrl: "",
       screenshotPreviewUrl: "",
@@ -1161,6 +1164,7 @@ async function handleInvoiceFiles(fileList) {
 function addManualItem() {
   items.push({
     id: crypto.randomUUID(),
+    sortOrder: nextSortOrder(),
     fileName: "手动新增",
     imageUrl: "",
     screenshotPreviewUrl: "",
@@ -1653,7 +1657,7 @@ function replaceInvoiceEntry(item, file, amount = "") { const fileName = normali
 function addInvoiceToItem(item, file, amount = "") { const fileName = normalizedInvoiceName(file?.name); if (invoiceEntries(item).some((entry) => normalizedInvoiceName(entry.name) === fileName && !entry.url && !entry.file)) return replaceInvoiceEntry(item, file, amount); item.invoiceFiles = invoiceEntries(item).filter((entry) => entry.url || entry.file || entry.name); item.invoiceFiles.push({ file, name: file.name, url: URL.createObjectURL(file), amount }); syncInvoiceLegacyFields(item); }
 function revokeInvoiceUrl(item) { for (const entry of invoiceEntries(item)) if (entry.url) URL.revokeObjectURL(entry.url); if (item.invoiceFileUrl && !invoiceEntries(item).some((entry) => entry.url === item.invoiceFileUrl)) URL.revokeObjectURL(item.invoiceFileUrl); }
 
-function renderAll() { renderTable(); renderSummary(); renderReportPreview(); }
+function renderAll() { ensureSortOrder(); renderTable(); renderSummary(); renderReportPreview(); }
 function markDirtyAndSave() { if (restoringDraft) return; dirty = true; saveDraft(false); }
 function hasDraftableData() { return items.length || $("#projectInput").value.trim() || $("#personInput").value.trim(); }
 function draftPayload() { return { version: 2, savedAt: new Date().toISOString(), project: $("#projectInput").value, person: $("#personInput").value, items: items.map(serializeItemForDraft) }; }
@@ -1720,19 +1724,24 @@ function removeScreenshot(id) { const item = items.find((entry) => entry.id === 
 
 async function addScreenshotToItem(id, file) { if (!file) return; const item = items.find((entry) => entry.id === id); if (!item) return; item.imageUrl = await imageFileToDraftDataUrl(file); item.screenshotPreviewUrl = item.imageUrl; item.fileName = file.name; item.rawText = ""; try { const images = await prepareImageForOcr(file); const recognized = await recognizePaymentImage(images, file.name); item.rawText = recognized.text; const parsedPreview = parsePaymentText(recognized.text, file.name); item.screenshotPreviewUrl = await imageFileToAmountPreviewDataUrl(file, selectBestAmountPreviewBox(recognized.amountPreviewCandidates, parsedPreview.amount, images.fullWidth, images.fullHeight), images.fullWidth, images.fullHeight) || item.imageUrl; } catch (error) { console.error(error); } markDirtyAndSave(); setStatus(`已上传截图：${file.name}。请确认金额和说明是否正确。`); renderAll(); }
 function bindDragEvents(root, selector, idAttr, rowSelector) { let dragId = ""; let overId = ""; const clear = () => root.querySelectorAll(".drag-over,.dragging").forEach((row) => row.classList.remove("drag-over", "dragging")); root.querySelectorAll(selector).forEach((handle) => { handle.addEventListener("pointerdown", (event) => { dragId = handle.getAttribute(idAttr); overId = dragId; handle.setPointerCapture?.(event.pointerId); handle.closest(rowSelector)?.classList.add("dragging"); document.body.classList.add("drag-sorting"); event.preventDefault(); }); handle.addEventListener("pointermove", (event) => { if (!dragId) return; const row = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(rowSelector); if (!row || row.dataset.rowId === overId) return; root.querySelectorAll(".drag-over").forEach((entry) => entry.classList.remove("drag-over")); overId = row.dataset.rowId; row.classList.add("drag-over"); }); handle.addEventListener("pointerup", (event) => { handle.releasePointerCapture?.(event.pointerId); if (dragId && overId && dragId !== overId) reorderItems(dragId, overId); dragId = ""; overId = ""; document.body.classList.remove("drag-sorting"); clear(); }); handle.addEventListener("pointercancel", () => { dragId = ""; overId = ""; document.body.classList.remove("drag-sorting"); clear(); }); }); }
-function reorderItems(sourceId, targetId) { const ordered = sortedItems(); const from = ordered.findIndex((item) => item.id === sourceId); const to = ordered.findIndex((item) => item.id === targetId); if (from < 0 || to < 0 || from === to) return; const [moved] = ordered.splice(from, 1); ordered.splice(to, 0, moved); ordered.forEach((item, index) => { item.sortOrder = index + 1; }); markDirtyAndSave(); setStatus("已调整明细顺序，导出和报销单预览会按当前顺序排列。修改日期后会重新按日期排序。"); renderAll(); }
-function updateItem(id, field, value) { const item = items.find((entry) => entry.id === id); if (!item) return; item[field] = value; if (field === "date") item.sortOrder = 0; markDirtyAndSave(); if (field === "date") renderAll(); else { renderSummary(); renderReportPreview(); } }
+function reorderItems(sourceId, targetId) { const ordered = sortedItems(); const from = ordered.findIndex((item) => item.id === sourceId); const to = ordered.findIndex((item) => item.id === targetId); if (from < 0 || to < 0 || from === to) return; const [moved] = ordered.splice(from, 1); ordered.splice(to, 0, moved); applySortOrder(ordered); markDirtyAndSave(); setStatus("已调整明细顺序，导出和报销单预览会按当前顺序排列。"); renderAll(); }
+function updateItem(id, field, value) { const item = items.find((entry) => entry.id === id); if (!item) return; item[field] = value; markDirtyAndSave(); if (field === "date" || field === "category") renderAll(); else { renderSummary(); renderReportPreview(); } }
 function getTotals() { return categories.map((category) => { const matched = items.filter((item) => item.category === category); return { category, amount: sumAmount(matched), count: matched.length }; }); }
 function renderSummary() { const totals = getTotals(); $("#totalAmount").textContent = sumAmount(items).toFixed(2); $("#summaryCards").innerHTML = totals.map((item) => `<div class="summary-card"><span>${item.category}</span><small>${item.count} 条</small><strong>${item.amount.toFixed(2)}</strong></div>`).join(""); }
 function renderReportPreview() { $("#reportPreview").innerHTML = `<div class="report-block"><h3>报销汇总</h3><table><tbody><tr><th>关联项目编号</th><td>${escapeHtml($("#projectInput").value)}</td><th>报销人</th><td>${escapeHtml($("#personInput").value)}</td></tr><tr><th>合计</th><td>${sumAmount(items).toFixed(2)}</td><th>明细条数</th><td>${items.length}</td></tr></tbody></table></div>` + categories.map(reportBlock).join(""); }
-function reportBlock(category) { const matched = sortedItems().filter((item) => item.category === category); const rows = matched.map((item) => `<tr><td>${escapeHtml(item.date)}</td><td>${escapeHtml(item.type)}</td><td>${Number(item.amount || 0).toFixed(2)}</td><td>${escapeHtml(item.description)}</td><td>${hasInvoice(item)}</td><td>${escapeHtml(invoiceSummary(item))}</td></tr>`).join(""); return `<div class="report-block"><h3>${category}合计：${sumAmount(matched).toFixed(2)}</h3>${matched.length ? `<table><thead><tr><th>时间</th><th>费用类型</th><th>金额</th><th>费用说明</th><th>是否有发票</th><th>发票</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">暂无${category}明细</div>`}</div>`; }
+function reportBlock(category) { const matched = previewOrderedItems().filter((item) => item.category === category); const rows = matched.map((item) => `<tr><td>${escapeHtml(item.date)}</td><td>${escapeHtml(item.type)}</td><td>${Number(item.amount || 0).toFixed(2)}</td><td>${escapeHtml(item.description)}</td><td>${hasInvoice(item)}</td><td>${escapeHtml(invoiceSummary(item))}</td></tr>`).join(""); return `<div class="report-block"><h3>${category}合计：${sumAmount(matched).toFixed(2)}</h3>${matched.length ? `<table><thead><tr><th>时间</th><th>费用类型</th><th>金额</th><th>费用说明</th><th>是否有发票</th><th>发票</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">暂无${category}明细</div>`}</div>`; }
 function sumAmount(list) { return list.reduce((sum, item) => sum + Number(item.amount || 0), 0); }
 function invoiceSummary(item) { const names = invoiceEntries(item).map((entry) => entry.name).filter(Boolean).join("、"); const amounts = invoiceEntries(item).map((entry) => entry.amount).filter(Boolean).join("、"); return [names, amounts ? `金额 ${amounts}` : ""].filter(Boolean).join(" / "); }
 function hasInvoice(item) { return invoiceEntries(item).length ? "有票" : "无票"; }
-function sortedItems(list = items) { return [...list].sort((a, b) => dateSortValue(a.date) - dateSortValue(b.date)); }
-function reportOrderedItems() { return categories.flatMap((category) => sortedItems(items.filter((item) => item.category === category))); }
+function sortedItems(list = items) { ensureSortOrder(); return [...list].sort((a, b) => sortValue(a) - sortValue(b) || dateSortValue(a.date) - dateSortValue(b.date)); }
+function previewOrderedItems() { return categories.flatMap((category) => sortedItems(items.filter((item) => item.category === category))); }
+function reportOrderedItems() { return previewOrderedItems(); }
+function ensureSortOrder() { if (!items.length) return; const missing = items.filter((item) => !Number(item.sortOrder)); if (!missing.length) return; const assigned = items.filter((item) => Number(item.sortOrder)).sort((a, b) => sortValue(a) - sortValue(b) || dateSortValue(a.date) - dateSortValue(b.date)); missing.forEach((item, index) => { item.sortOrder = assigned.length + index + 1; }); }
+function applySortOrder(ordered) { ordered.forEach((item, index) => { item.sortOrder = index + 1; }); }
+function sortValue(item) { return Number(item.sortOrder || 0) || Number.MAX_SAFE_INTEGER; }
+function nextSortOrder() { return items.reduce((max, item) => Math.max(max, Number(item.sortOrder || 0)), 0) + 1; }
 function dateSortValue(value) { const date = Date.parse(String(value || "").replace(/\//g, "-")); return Number.isFinite(date) ? date : Number.MAX_SAFE_INTEGER; }
-function exportRows() { syncTableControlsToItems(); const project = $("#projectInput").value.trim(); const person = $("#personInput").value.trim(); return sortedItems().map((item, index) => ({ 序号: index + 1, 关联项目编号: project, 报销人: person, 日期: item.date, 一级费用类别: item.category, 费用类型: item.type, 金额: Number(item.amount || 0), 费用说明: item.description, 是否有发票: hasInvoice(item), 发票PDF文件名: invoiceEntries(item).map((entry) => entry.name).filter(Boolean).join("、"), 发票识别金额: invoiceEntries(item).map((entry) => entry.amount).filter(Boolean).join("、"), 发票链接: item.invoiceLink || "", 付款截图文件名: item.fileName, 备注: "由付款截图识别整理" })); }
+function exportRows() { syncTableControlsToItems(); const project = $("#projectInput").value.trim(); const person = $("#personInput").value.trim(); return previewOrderedItems().map((item, index) => ({ 序号: index + 1, 关联项目编号: project, 报销人: person, 日期: item.date, 一级费用类别: item.category, 费用类型: item.type, 金额: Number(item.amount || 0), 费用说明: item.description, 是否有发票: hasInvoice(item), 发票PDF文件名: invoiceEntries(item).map((entry) => entry.name).filter(Boolean).join("、"), 发票识别金额: invoiceEntries(item).map((entry) => entry.amount).filter(Boolean).join("、"), 发票链接: item.invoiceLink || "", 付款截图文件名: item.fileName, 备注: "由付款截图识别整理" })); }
 function exportCsv() { if (!validateExportMeta()) return; if (!items.length) return setStatus("没有可导出的明细。"); const rows = exportRows(); const headers = Object.keys(rows[0]); const csv = [headers.join(",")].concat(rows.map((row) => headers.map((key) => csvCell(row[key])).join(","))).join("\n"); downloadBlob(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }), `${exportBaseFileName("报销明细")}-报销明细.csv`); }
 function exportXlsx() { if (!validateExportMeta()) return; if (!items.length) return setStatus("没有可导出的明细。"); prepareCurrentStateForExport(); const wb = XLSX.utils.book_new(); const rows = buildTemplateRows(); const ws = XLSX.utils.aoa_to_sheet(rows); ws["!merges"] = [{ s: { r: 1, c: 2 }, e: { r: 1, c: 3 } }]; ws["!cols"] = [{ wch: 9.16 }, { wch: 16.66 }, { wch: 11.83 }, { wch: 11 }, { wch: 88.83 }, { hidden: true }]; ws["!rows"] = Array.from({ length: rows.length }, (_, index) => ({ hpt: index === 0 ? 35.25 : 18 })); applyTemplateSheetStyle(ws); XLSX.utils.book_append_sheet(wb, ws, "Sheet1"); const fileName = `${exportBaseFileName("报销明细")}-报销明细.xlsx`; XLSX.writeFile(wb, fileName); markExportDone(fileName); }
 
@@ -1816,9 +1825,11 @@ function applyTemplateSheetStyle(ws) {
 async function exportScreenshotsDoc() {
   if (!validateExportMeta()) return;
   prepareCurrentStateForExport();
-  const rows = reportOrderedItems().filter((item) => item.imageUrl);
+  const ordered = previewOrderedItems();
+  const rows = ordered.filter((item) => item.imageUrl);
+  const missingScreenshots = ordered.length - rows.length;
   if (!rows.length) return setStatus("没有可导出的截图。");
-  if (window.JSZip) return exportScreenshotsDocx(rows);
+  if (window.JSZip) return exportScreenshotsDocx(rows, missingScreenshots);
   const cards = await Promise.all(rows.map(async (item) => {
     const dataUrl = await imageUrlToFittedDataUrl(item.imageUrl);
     return `<td class="shot-cell"><div class="shot-frame"><img src="${dataUrl}"></div></td>`;
@@ -1830,10 +1841,12 @@ async function exportScreenshotsDoc() {
     pages.push(`<div class="page"><table class="shot-table"><tr>${pageCards.slice(0, 8).join("")}</tr><tr>${pageCards.slice(8, 16).join("")}</tr></table></div>`);
   }
   const html = `<!doctype html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><meta name="ProgId" content="Word.Document"><meta name="Generator" content="Microsoft Word"><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><style>@page{size:841.9pt 595.3pt;margin:90pt 72pt 90pt 72pt}@page WordSection1{size:841.9pt 595.3pt;mso-page-orientation:landscape;margin:90pt 72pt 90pt 72pt}body{margin:0}div.WordSection1{page:WordSection1}.page{width:697.7pt;height:405.6pt;page-break-after:always;overflow:hidden}.shot-table{width:697.7pt;height:405.6pt;border-collapse:collapse;table-layout:fixed;mso-table-lspace:0pt;mso-table-rspace:0pt}.shot-cell{width:87.2pt;height:202.8pt;padding:0;border:0.75pt solid #d9d9d9;vertical-align:middle;text-align:center;overflow:hidden;page-break-inside:avoid}.shot-frame{width:100%;height:100%;overflow:hidden;text-align:center}.shot-frame img{display:block;width:100%;height:100%;border:0}.empty{border-color:#eeeeee}.page:last-child{page-break-after:auto}</style></head><body><div class="WordSection1">${pages.join("")}</div></body></html>`;
-  downloadBlob(new Blob(["\ufeff" + html], { type: "application/msword;charset=utf-8" }), `${exportBaseFileName("报销")}-付款截图.doc`);
+  const fileName = `${exportBaseFileName("报销")}-付款截图.doc`;
+  downloadBlob(new Blob(["\ufeff" + html], { type: "application/msword;charset=utf-8" }), fileName);
+  setStatus(missingScreenshots ? `已导出：${fileName}。另有 ${missingScreenshots} 条明细没有付款截图，未放入截图文件。` : `已导出：${fileName}。`);
 }
 
-async function exportScreenshotsDocx(rows) {
+async function exportScreenshotsDocx(rows, missingScreenshots = 0) {
   setStatus("正在生成付款截图 Word...");
   const zip = new JSZip();
   const images = await Promise.all(rows.map(async (item, index) => ({
@@ -1848,7 +1861,7 @@ async function exportScreenshotsDocx(rows) {
   const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
   const fileName = `${exportBaseFileName("报销")}-付款截图.docx`;
   downloadBlob(blob, fileName);
-  markExportDone(fileName);
+  setStatus(missingScreenshots ? `已导出：${fileName}。另有 ${missingScreenshots} 条明细没有付款截图，未放入截图文件。` : `已导出：${fileName}。请在浏览器下载记录或系统“下载”文件夹中查看；网页无法直接打开本地文件夹。`);
 }
 
 function docxDocumentXml(images) {
@@ -1882,13 +1895,15 @@ function dataUrlToUint8Array(dataUrl) { const base64 = dataUrl.split(",")[1] || 
 async function exportInvoicesPdf() {
   if (!validateExportMeta()) return;
   prepareCurrentStateForExport();
-  const invoiceItems = sortedItems().flatMap((item) => invoiceEntries(item).filter((entry) => entry.file));
-  const missingFiles = sortedItems().flatMap((item) => invoiceEntries(item).filter((entry) => !entry.file && !entry.url && entry.name));
+  const ordered = previewOrderedItems();
+  const invoiceItems = ordered.flatMap((item) => invoiceEntries(item).filter((entry) => entry.file || entry.url));
+  const missingFiles = ordered.flatMap((item) => invoiceEntries(item).filter((entry) => !entry.file && !entry.url && entry.name));
   if (!invoiceItems.length) return setStatus("没有可导出的发票 PDF。请先上传发票 PDF 文件。");
   if (!window.PDFLib) return setStatus("PDF 合并组件还没加载完成，请稍后再试。");
   const merged = await PDFLib.PDFDocument.create();
   for (const invoice of invoiceItems) {
-    const source = await PDFLib.PDFDocument.load(await invoice.file.arrayBuffer());
+    const sourceBytes = invoice.file ? await invoice.file.arrayBuffer() : await (await fetch(invoice.url)).arrayBuffer();
+    const source = await PDFLib.PDFDocument.load(sourceBytes);
     const pages = await merged.copyPages(source, source.getPageIndices());
     pages.forEach((page) => merged.addPage(page));
   }
