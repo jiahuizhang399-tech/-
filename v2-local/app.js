@@ -1734,7 +1734,7 @@ function reportOrderedItems() { return categories.flatMap((category) => sortedIt
 function dateSortValue(value) { const date = Date.parse(String(value || "").replace(/\//g, "-")); return Number.isFinite(date) ? date : Number.MAX_SAFE_INTEGER; }
 function exportRows() { syncTableControlsToItems(); const project = $("#projectInput").value.trim(); const person = $("#personInput").value.trim(); return sortedItems().map((item, index) => ({ 序号: index + 1, 关联项目编号: project, 报销人: person, 日期: item.date, 一级费用类别: item.category, 费用类型: item.type, 金额: Number(item.amount || 0), 费用说明: item.description, 是否有发票: hasInvoice(item), 发票PDF文件名: invoiceEntries(item).map((entry) => entry.name).filter(Boolean).join("、"), 发票识别金额: invoiceEntries(item).map((entry) => entry.amount).filter(Boolean).join("、"), 发票链接: item.invoiceLink || "", 付款截图文件名: item.fileName, 备注: "由付款截图识别整理" })); }
 function exportCsv() { if (!validateExportMeta()) return; if (!items.length) return setStatus("没有可导出的明细。"); const rows = exportRows(); const headers = Object.keys(rows[0]); const csv = [headers.join(",")].concat(rows.map((row) => headers.map((key) => csvCell(row[key])).join(","))).join("\n"); downloadBlob(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }), `${exportBaseFileName("报销明细")}-报销明细.csv`); }
-function exportXlsx() { if (!validateExportMeta()) return; if (!items.length) return setStatus("没有可导出的明细。"); const wb = XLSX.utils.book_new(); const rows = buildTemplateRows(); const ws = XLSX.utils.aoa_to_sheet(rows); ws["!merges"] = [{ s: { r: 1, c: 2 }, e: { r: 1, c: 3 } }]; ws["!cols"] = [{ wch: 9.16 }, { wch: 16.66 }, { wch: 11.83 }, { wch: 11 }, { wch: 88.83 }, { hidden: true }]; ws["!rows"] = Array.from({ length: rows.length }, (_, index) => ({ hpt: index === 0 ? 35.25 : 18 })); applyTemplateSheetStyle(ws); XLSX.utils.book_append_sheet(wb, ws, "Sheet1"); const fileName = `${exportBaseFileName("报销明细")}-报销明细.xlsx`; XLSX.writeFile(wb, fileName); markExportDone(fileName); }
+function exportXlsx() { if (!validateExportMeta()) return; if (!items.length) return setStatus("没有可导出的明细。"); prepareCurrentStateForExport(); const wb = XLSX.utils.book_new(); const rows = buildTemplateRows(); const ws = XLSX.utils.aoa_to_sheet(rows); ws["!merges"] = [{ s: { r: 1, c: 2 }, e: { r: 1, c: 3 } }]; ws["!cols"] = [{ wch: 9.16 }, { wch: 16.66 }, { wch: 11.83 }, { wch: 11 }, { wch: 88.83 }, { hidden: true }]; ws["!rows"] = Array.from({ length: rows.length }, (_, index) => ({ hpt: index === 0 ? 35.25 : 18 })); applyTemplateSheetStyle(ws); XLSX.utils.book_append_sheet(wb, ws, "Sheet1"); const fileName = `${exportBaseFileName("报销明细")}-报销明细.xlsx`; XLSX.writeFile(wb, fileName); markExportDone(fileName); }
 
 function buildTemplateRows() {
   const rows = Array.from({ length: 10 }, () => Array(6).fill(null));
@@ -1793,6 +1793,7 @@ function buildTemplateRows() {
 
 function formulaCell(formula, value) { return { f: formula, t: "n", v: Number(value || 0) }; }
 function sumInvoiceAmount(list) { return list.reduce((sum, item) => sum + invoiceEntries(item).reduce((inner, entry) => inner + Number(entry.amount || 0), 0), 0); }
+function prepareCurrentStateForExport() { syncTableControlsToItems(); renderSummary(); renderReportPreview(); }
 function validateExportMeta() { const project = $("#projectInput").value.trim(); const person = $("#personInput").value.trim(); if (project && person) return true; setStatus(!project && !person ? "请先填写关联项目编号和报销人，再导出文件。" : !project ? "请先填写关联项目编号，再导出文件。" : "请先填写报销人，再导出文件。"); (!project ? $("#projectInput") : $("#personInput")).focus(); return false; }
 function exportBaseFileName(fallback) { const project = $("#projectInput").value.trim(); const person = $("#personInput").value.trim(); return sanitizeFileName([project, person].filter(Boolean).join("-") || fallback); }
 function sanitizeFileName(value) { return String(value || "").replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, "").slice(0, 80) || "自动整理报销表"; }
@@ -1814,6 +1815,7 @@ function applyTemplateSheetStyle(ws) {
 
 async function exportScreenshotsDoc() {
   if (!validateExportMeta()) return;
+  prepareCurrentStateForExport();
   const rows = reportOrderedItems().filter((item) => item.imageUrl);
   if (!rows.length) return setStatus("没有可导出的截图。");
   if (window.JSZip) return exportScreenshotsDocx(rows);
@@ -1879,7 +1881,9 @@ function dataUrlToUint8Array(dataUrl) { const base64 = dataUrl.split(",")[1] || 
 
 async function exportInvoicesPdf() {
   if (!validateExportMeta()) return;
+  prepareCurrentStateForExport();
   const invoiceItems = sortedItems().flatMap((item) => invoiceEntries(item).filter((entry) => entry.file));
+  const missingFiles = sortedItems().flatMap((item) => invoiceEntries(item).filter((entry) => !entry.file && !entry.url && entry.name));
   if (!invoiceItems.length) return setStatus("没有可导出的发票 PDF。请先上传发票 PDF 文件。");
   if (!window.PDFLib) return setStatus("PDF 合并组件还没加载完成，请稍后再试。");
   const merged = await PDFLib.PDFDocument.create();
@@ -1889,11 +1893,14 @@ async function exportInvoicesPdf() {
     pages.forEach((page) => merged.addPage(page));
   }
   const bytes = await merged.save();
-  downloadBlob(new Blob([bytes], { type: "application/pdf" }), `${exportBaseFileName("报销")}-发票.pdf`);
+  const fileName = `${exportBaseFileName("报销")}-发票.pdf`;
+  downloadBlob(new Blob([bytes], { type: "application/pdf" }), fileName);
+  setStatus(missingFiles.length ? `已导出：${fileName}。另有 ${missingFiles.length} 条发票记录只有文件名，需重新上传 PDF 后才能合并。` : `已导出：${fileName}。`);
 }
 
 async function exportReportPreviewImage() {
   if (!validateExportMeta()) return;
+  prepareCurrentStateForExport();
   if (!window.html2canvas) return setStatus("预览截图组件还没加载完成，请稍后再试。");
   const panel = $("#reportPreviewPanel");
   const preview = $("#reportPreview");
