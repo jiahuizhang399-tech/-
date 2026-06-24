@@ -1728,8 +1728,10 @@ function reorderItems(sourceId, targetId) { const ordered = sortedItems(); const
 function updateItem(id, field, value) { const item = items.find((entry) => entry.id === id); if (!item) return; item[field] = value; markDirtyAndSave(); if (field === "date" || field === "category") renderAll(); else { renderSummary(); renderReportPreview(); } }
 function getTotals() { return categories.map((category) => { const matched = items.filter((item) => item.category === category); return { category, amount: sumAmount(matched), count: matched.length }; }); }
 function renderSummary() { const totals = getTotals(); $("#totalAmount").textContent = sumAmount(items).toFixed(2); $("#summaryCards").innerHTML = totals.map((item) => `<div class="summary-card"><span>${item.category}</span><small>${item.count} 条</small><strong>${item.amount.toFixed(2)}</strong></div>`).join(""); }
-function renderReportPreview() { $("#reportPreview").innerHTML = `<div class="report-block"><h3>报销汇总</h3><table><tbody><tr><th>关联项目编号</th><td>${escapeHtml($("#projectInput").value)}</td><th>报销人</th><td>${escapeHtml($("#personInput").value)}</td></tr><tr><th>合计</th><td>${sumAmount(items).toFixed(2)}</td><th>明细条数</th><td>${items.length}</td></tr></tbody></table></div>` + categories.map(reportBlock).join(""); }
-function reportBlock(category) { const matched = previewOrderedItems().filter((item) => item.category === category); const rows = matched.map((item) => `<tr><td>${escapeHtml(item.date)}</td><td>${escapeHtml(item.type)}</td><td>${Number(item.amount || 0).toFixed(2)}</td><td>${escapeHtml(item.description)}</td><td>${hasInvoice(item)}</td><td>${escapeHtml(invoiceSummary(item))}</td></tr>`).join(""); return `<div class="report-block"><h3>${category}合计：${sumAmount(matched).toFixed(2)}</h3>${matched.length ? `<table><thead><tr><th>时间</th><th>费用类型</th><th>金额</th><th>费用说明</th><th>是否有发票</th><th>发票</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">暂无${category}明细</div>`}</div>`; }
+function renderReportPreview() { const preview = $("#reportPreview"); preview.innerHTML = `<div class="report-block"><h3>报销汇总</h3><table><tbody><tr><th>关联项目编号</th><td>${escapeHtml($("#projectInput").value)}</td><th>报销人</th><td>${escapeHtml($("#personInput").value)}</td></tr><tr><th>合计</th><td>${sumAmount(items).toFixed(2)}</td><th>明细条数</th><td>${items.length}</td></tr></tbody></table></div>` + categories.map(reportBlock).join(""); bindReportPreviewSortEvents(preview); }
+function reportBlock(category) { const matched = previewOrderedItems().filter((item) => item.category === category); const rows = matched.map((item, index) => `<tr><td class="preview-sort-actions" style="width:58px;white-space:nowrap"><button type="button" data-preview-move="up" data-preview-id="${item.id}" ${index === 0 ? "disabled" : ""} style="width:24px;height:24px;padding:0;margin-right:4px">↑</button><button type="button" data-preview-move="down" data-preview-id="${item.id}" ${index === matched.length - 1 ? "disabled" : ""} style="width:24px;height:24px;padding:0">↓</button></td><td>${escapeHtml(item.date)}</td><td>${escapeHtml(item.type)}</td><td>${Number(item.amount || 0).toFixed(2)}</td><td>${escapeHtml(item.description)}</td><td>${hasInvoice(item)}</td><td>${escapeHtml(invoiceSummary(item))}</td></tr>`).join(""); return `<div class="report-block"><h3>${category}合计：${sumAmount(matched).toFixed(2)}</h3>${matched.length ? `<table><thead><tr><th class="preview-sort-actions" style="width:58px">顺序</th><th>时间</th><th>费用类型</th><th>金额</th><th>费用说明</th><th>是否有发票</th><th>发票</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">暂无${category}明细</div>`}</div>`; }
+function bindReportPreviewSortEvents(root) { root.querySelectorAll("[data-preview-move]").forEach((button) => button.addEventListener("click", () => movePreviewItem(button.dataset.previewId, button.dataset.previewMove))); }
+function movePreviewItem(id, direction) { const item = items.find((entry) => entry.id === id); if (!item) return; const ordered = sortedItems(items.filter((entry) => entry.category === item.category)); const index = ordered.findIndex((entry) => entry.id === id); const targetIndex = direction === "up" ? index - 1 : index + 1; if (index < 0 || targetIndex < 0 || targetIndex >= ordered.length) return; reorderItems(id, ordered[targetIndex].id); }
 function sumAmount(list) { return list.reduce((sum, item) => sum + Number(item.amount || 0), 0); }
 function invoiceSummary(item) { const names = invoiceEntries(item).map((entry) => entry.name).filter(Boolean).join("、"); const amounts = invoiceEntries(item).map((entry) => entry.amount).filter(Boolean).join("、"); return [names, amounts ? `金额 ${amounts}` : ""].filter(Boolean).join(" / "); }
 function hasInvoice(item) { return invoiceEntries(item).length ? "有票" : "无票"; }
@@ -1959,16 +1961,18 @@ function getReportPreviewExportScale(panel) {
 }
 
 function prepareReportPreviewCapture(panel, preview) {
-  const previous = { panelStyle: panel.getAttribute("style"), previewStyle: preview.getAttribute("style") };
+  const previous = { panelStyle: panel.getAttribute("style"), previewStyle: preview.getAttribute("style"), sortStyles: [...panel.querySelectorAll(".preview-sort-actions")].map((node) => [node, node.getAttribute("style")]) };
   const captureWidth = Math.max(panel.scrollWidth, preview.scrollWidth + 30, 900);
   panel.style.width = `${captureWidth}px`;
   panel.style.maxWidth = "none";
   preview.style.overflow = "visible";
   preview.style.width = "100%";
   preview.style.maxWidth = "none";
+  previous.sortStyles.forEach(([node]) => { node.style.display = "none"; });
   return () => {
     if (previous.panelStyle === null) panel.removeAttribute("style"); else panel.setAttribute("style", previous.panelStyle);
     if (previous.previewStyle === null) preview.removeAttribute("style"); else preview.setAttribute("style", previous.previewStyle);
+    previous.sortStyles.forEach(([node, style]) => { if (style === null) node.removeAttribute("style"); else node.setAttribute("style", style); });
   };
 }
 
