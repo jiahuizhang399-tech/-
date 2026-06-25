@@ -32,6 +32,8 @@ const wechatShotInput = $("#wechatShotInput");
 const wechatShotDropZone = $("#wechatShotDropZone");
 const statusBar = $("#statusBar");
 const tableBody = $("#itemsTable tbody");
+const detailSearchInput = $("#detailSearchInput");
+const detailSearchBtn = $("#detailSearchBtn");
 const imageViewer = $("#imageViewer");
 const viewerImage = $("#viewerImage");
 const viewerCaption = $("#viewerCaption");
@@ -52,6 +54,8 @@ fileInput.addEventListener("click", () => { fileInput.value = ""; });
 invoiceBatchInput.addEventListener("change", (event) => handleInvoiceFiles(event.target.files));
 invoiceBatchInput.addEventListener("click", () => { invoiceBatchInput.value = ""; });
 if (linkInvoiceFolderBtn) linkInvoiceFolderBtn.addEventListener("click", linkInvoiceFolder);
+if (detailSearchBtn) detailSearchBtn.addEventListener("click", searchDetailRow);
+if (detailSearchInput) detailSearchInput.addEventListener("keydown", (event) => { if (event.key === "Enter") searchDetailRow(); });
 if (wechatBillInput) {
   wechatBillInput.addEventListener("change", (event) => handleWechatBillFile(event.target.files?.[0]));
   wechatBillInput.addEventListener("click", () => { wechatBillInput.value = ""; });
@@ -1299,7 +1303,6 @@ function collectAmountPreviewCandidates(regions) {
 }
 
 function selectBestAmountPreviewBox(candidates, targetAmount, ocrWidth, ocrHeight) {
-  if (ocrWidth && ocrHeight) return fallbackMainAmountBox(ocrWidth, ocrHeight);
   candidates = [...(candidates || [])];
   const target = normalizeAmount(targetAmount);
   if (!target && ocrWidth && ocrHeight) return fallbackMainAmountBox(ocrWidth, ocrHeight);
@@ -1311,6 +1314,7 @@ function selectBestAmountPreviewBox(candidates, targetAmount, ocrWidth, ocrHeigh
 }
 
 function fallbackMainAmountBox(ocrWidth, ocrHeight) {
+  if (ocrWidth / Math.max(1, ocrHeight) >= 2.25) return { x: ocrWidth * .66, y: ocrHeight * .16, width: ocrWidth * .30, height: ocrHeight * .50, amount: 0, score: 0, preferredCrop: true };
   return { x: ocrWidth * .23, y: ocrHeight * .255, width: ocrWidth * .54, height: ocrHeight * .18, amount: 0, score: 0, preferredCrop: true };
 }
 
@@ -1705,6 +1709,8 @@ async function collectPdfFiles(dirHandle, files, depth) { if (depth > 3 || !dirH
 function isDataUrl(value) { return /^data:image\//.test(String(value || "")); }
 function formatDraftTime(value) { const date = new Date(value); return Number.isFinite(date.getTime()) ? date.toLocaleString("zh-CN", { hour12: false }) : value; }
 function renderTable() { tableBody.innerHTML = ""; if (!items.length) { tableBody.innerHTML = `<tr><td colspan="9" class="empty">还没有明细。上传付款截图后会自动生成待确认行。</td></tr>`; return; } for (const item of sortedItems()) { const row = document.createElement("tr"); row.dataset.rowId = item.id; const invoiceStatus = hasInvoice(item); row.innerHTML = `<td><input type="date" value="${escapeHtml(item.date)}" data-id="${item.id}" data-field="date"></td><td>${categorySelect(item)}</td><td><input value="${escapeHtml(item.type)}" data-id="${item.id}" data-field="type"></td><td><input class="${item.amount ? "" : "needs-check"}" type="number" step="0.01" value="${escapeHtml(item.amount)}" placeholder="待填写" data-id="${item.id}" data-field="amount"></td><td><textarea data-id="${item.id}" data-field="description">${escapeHtml(item.description)}</textarea></td><td class="${invoiceStatus === "有票" ? "invoice-yes" : "invoice-no"}">${invoiceStatus}</td><td>${invoiceCell(item)}</td><td>${screenshotCell(item)}</td><td><div class="row-actions"><button class="delete" data-delete="${item.id}">删除本条</button><button class="drag-handle" type="button" data-drag-handle="${item.id}" aria-label="拖动调整顺序">拖动</button></div></td>`; tableBody.appendChild(row); } bindTableEvents(); }
+function searchDetailRow() { const keyword = normalizeText(detailSearchInput?.value || "").trim().toLowerCase(); if (!keyword) { detailSearchInput?.focus(); return setStatus("请输入要搜索的明细文字、金额或日期。"); } syncTableControlsToItems(); const item = sortedItems().find((entry) => detailSearchText(entry).includes(keyword)); if (!item) return setStatus(`没有找到包含“${keyword}”的明细。`); const row = tableBody.querySelector(`tr[data-row-id="${CSS.escape(item.id)}"]`); if (!row) return; tableBody.querySelectorAll("tr.search-hit").forEach((entry) => entry.classList.remove("search-hit")); row.classList.add("search-hit"); row.scrollIntoView({ behavior: "smooth", block: "center" }); setTimeout(() => { const control = row.querySelector('[data-field="description"]') || row.querySelector("input,select,textarea"); if (control) { control.focus(); if (control.select) control.select(); } }, 350); setStatus(`已定位到匹配明细：${item.description || item.amount || item.date || item.fileName || keyword}`); }
+function detailSearchText(item) { return normalizeText([item.date, item.category, item.type, item.amount, item.description, item.fileName, item.invoiceFileName, item.invoiceAmount, item.rawText].join(" ")).toLowerCase(); }
 function bindTableEvents() { tableBody.querySelectorAll("input,select,textarea").forEach((control) => { const handler = (event) => { updateItem(event.target.dataset.id, event.target.dataset.field, event.target.value); if (event.target.dataset.field === "amount") event.target.classList.toggle("needs-check", !event.target.value); }; control.addEventListener("input", handler); control.addEventListener("change", handler); }); tableBody.querySelectorAll("[data-delete]").forEach((button) => button.addEventListener("click", () => { const item = items.find((entry) => entry.id === button.dataset.delete); if (item) revokeInvoiceUrl(item); items = items.filter((entry) => entry.id !== button.dataset.delete); markDirtyAndSave(); renderAll(); })); tableBody.querySelectorAll("[data-preview]").forEach((button) => button.addEventListener("click", () => openImageViewer(button.dataset.preview))); tableBody.querySelectorAll("[data-remove-screenshot]").forEach((button) => button.addEventListener("click", () => removeScreenshot(button.dataset.removeScreenshot))); tableBody.querySelectorAll("[data-screenshot-add]").forEach((input) => input.addEventListener("change", (event) => addScreenshotToItem(input.dataset.screenshotAdd, event.target.files[0]))); tableBody.querySelectorAll("[data-invoice-preview]").forEach((button) => button.addEventListener("click", () => openInvoicePreview(button.dataset.invoicePreview))); tableBody.querySelectorAll("[data-invoice-file]").forEach((input) => input.addEventListener("change", (event) => updateInvoiceFile(input.dataset.invoiceFile, event.target.files[0]))); tableBody.querySelectorAll("[data-remove-invoice]").forEach((button) => button.addEventListener("click", () => removeInvoiceFile(button.dataset.removeInvoice))); bindDragEvents(tableBody, "[data-drag-handle]", "data-drag-handle", "tr[data-row-id]"); }
 function categorySelect(item) { return `<select data-id="${item.id}" data-field="category">${categories.map((c) => `<option ${item.category === c ? "selected" : ""}>${c}</option>`).join("")}</select>`; }
 function screenshotCell(item) { return item.imageUrl ? `<div class="screenshot-cell"><button class="thumb-button" type="button" data-preview="${item.id}"><img class="thumb" src="${item.screenshotPreviewUrl || item.imageUrl}" alt="${escapeHtml(item.fileName)}"></button><button class="screenshot-remove" type="button" data-remove-screenshot="${item.id}" title="删除付款截图" aria-label="删除付款截图">×</button></div>` : `<label class="thumb-empty">${item.source === "微信Excel" ? "待补完整截图" : "点击上传"}<input type="file" accept="image/*" data-screenshot-add="${item.id}" hidden></label>`; }
