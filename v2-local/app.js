@@ -36,6 +36,8 @@ const pdfPages = $("#pdfPages");
 const pdfViewerTitle = $("#pdfViewerTitle");
 let pdfPreviewRun = 0;
 
+injectDragSortStyles();
+
 invoiceBatchInput.multiple = true;
 invoiceBatchInput.setAttribute("multiple", "");
 invoiceBatchInput.accept = "application/pdf,.pdf,*/*";
@@ -92,6 +94,18 @@ document.addEventListener("keydown", (event) => { if (event.key === "Escape") { 
 window.addEventListener("beforeunload", (event) => { if (suppressBeforeUnload || !dirty || !hasDraftableData()) return; event.preventDefault(); event.returnValue = ""; });
 restoreDraft(false);
 setTimeout(resumeWechatLongOcrIfNeeded, 600);
+
+function injectDragSortStyles() {
+  const style = document.createElement("style");
+  style.textContent = `
+    body.drag-sorting [data-drag-handle], body.drag-sorting [data-preview-drag] { cursor: grabbing !important; }
+    tr.dragging { opacity: .45; }
+    tr.drag-over { position: relative; background: #fff4c6 !important; box-shadow: inset 0 0 0 3px #e08d12, 0 0 0 2px rgba(224,141,18,.18); }
+    tr.drag-over > td { background: #fff4c6 !important; }
+    tr.drag-over::before { content: "放到这里"; position: absolute; left: 6px; top: -12px; z-index: 20; padding: 2px 8px; border-radius: 999px; background: #e08d12; color: #fff; font-size: 12px; line-height: 1.3; pointer-events: none; }
+  `;
+  document.head.appendChild(style);
+}
 
 async function handleFiles(fileList) {
   const files = Array.from(fileList || []).filter((file) => file.type.startsWith("image/"));
@@ -1675,9 +1689,11 @@ function categorySelect(item) { return `<select data-id="${item.id}" data-field=
 function screenshotCell(item) { return item.imageUrl ? `<div class="screenshot-cell"><button class="thumb-button" type="button" data-preview="${item.id}"><img class="thumb" src="${item.screenshotPreviewUrl || item.imageUrl}" alt="${escapeHtml(item.fileName)}"></button><button class="screenshot-remove" type="button" data-remove-screenshot="${item.id}" title="删除付款截图" aria-label="删除付款截图">×</button></div>` : `<label class="thumb-empty">${item.source === "微信Excel" ? "待补完整截图" : "点击上传"}<input type="file" accept="image/*" data-screenshot-add="${item.id}" hidden></label>`; }
 function invoiceCell(item) { const entries = invoiceEntries(item); const hasUploaded = entries.some((entry) => entry.url); const restoredOnly = entries.length && !hasUploaded; const names = entries.map((entry) => entry.name).filter(Boolean).join("、"); const amounts = entries.map((entry) => entry.amount).filter(Boolean).join("、"); return `<div class="invoice-cell ${hasUploaded ? "has-invoice" : restoredOnly ? "invoice-needs-reupload" : "no-invoice"}">${hasUploaded ? `<button class="invoice-upload invoice-preview-action" type="button" data-invoice-preview="${item.id}">预览</button><label class="invoice-upload" title="继续上传第2张/更多发票">+<input type="file" accept="application/pdf,.pdf" data-invoice-file="${item.id}"></label><button class="invoice-remove" type="button" data-remove-invoice="${item.id}">删发票</button><button class="invoice-file" type="button" data-invoice-preview="${item.id}">${escapeHtml(names)}</button>${amounts ? `<span class="invoice-amount">发票金额：${escapeHtml(amounts)}</span>` : ""}` : restoredOnly ? `<label class="invoice-upload">重传<input type="file" accept="application/pdf,.pdf" data-invoice-file="${item.id}"></label><button class="invoice-remove" type="button" data-remove-invoice="${item.id}">删记录</button><span class="invoice-file invoice-file-note">${escapeHtml(names)}</span><span class="invoice-amount">需重传 PDF 才能预览</span>` : `<label class="invoice-upload">PDF<input type="file" accept="application/pdf,.pdf" data-invoice-file="${item.id}"></label><span class="invoice-empty">未上传 PDF</span>`}</div>`; }
 async function updateInvoiceFile(id, file) { if (!file) return; const item = items.find((entry) => entry.id === id); if (!item) return; const amount = window.pdfjsLib ? ((await getInvoiceAmounts(file))[0] || "") : ""; addInvoiceToItem(item, file, amount); markDirtyAndSave(); setStatus(amount ? `已追加发票 PDF：${file.name}，识别金额 ${amount}。该行当前共 ${invoiceEntries(item).length} 张发票。刷新后需重新上传原 PDF 才能合并导出。` : `已追加发票 PDF：${file.name}。该行当前共 ${invoiceEntries(item).length} 张发票。刷新后需重新上传原 PDF 才能合并导出。`); renderTable(); }
-async function openInvoicePreview(id) {
+async function openInvoicePreview(id, invoiceIndex = 0) {
   const item = items.find((entry) => entry.id === id);
-  const invoice = invoiceEntries(item || {}).find((entry) => entry.url || entry.file);
+  const entries = invoiceEntries(item || {});
+  const invoice = entries[Math.max(0, Number(invoiceIndex || 0))] || entries.find((entry) => entry.url || entry.file);
+  if (invoice && !invoice.url && !invoice.file) return setStatus("这张发票记录只有文件名，请重新上传该 PDF 后再预览。");
   if (!invoice) return setStatus(item?.invoiceFileName ? "草稿只保留了发票名称，请重新上传该 PDF 后再预览。" : "请先上传发票 PDF 后再预览。");
   if (!window.pdfjsLib) return setStatus("PDF 预览组件还没有加载完成，请稍后再试。");
 
@@ -1729,8 +1745,9 @@ function updateItem(id, field, value) { const item = items.find((entry) => entry
 function getTotals() { return categories.map((category) => { const matched = items.filter((item) => item.category === category); return { category, amount: sumAmount(matched), count: matched.length }; }); }
 function renderSummary() { const totals = getTotals(); $("#totalAmount").textContent = sumAmount(items).toFixed(2); $("#summaryCards").innerHTML = totals.map((item) => `<div class="summary-card"><span>${item.category}</span><small>${item.count} 条</small><strong>${item.amount.toFixed(2)}</strong></div>`).join(""); }
 function renderReportPreview() { const preview = $("#reportPreview"); preview.innerHTML = `<div class="report-block"><h3>报销汇总</h3><table><tbody><tr><th>关联项目编号</th><td>${escapeHtml($("#projectInput").value)}</td><th>报销人</th><td>${escapeHtml($("#personInput").value)}</td></tr><tr><th>合计</th><td>${sumAmount(items).toFixed(2)}</td><th>明细条数</th><td>${items.length}</td></tr></tbody></table></div>` + categories.map(reportBlock).join(""); bindReportPreviewSortEvents(preview); }
-function reportBlock(category) { const matched = previewOrderedItems().filter((item) => item.category === category); const rows = matched.map((item) => `<tr data-preview-row-id="${item.id}" data-preview-category="${escapeHtml(category)}"><td class="preview-sort-actions" style="width:52px;white-space:nowrap"><button type="button" data-preview-drag="${item.id}" aria-label="按住拖动调整顺序" style="width:44px;height:24px;padding:0;font-size:12px;cursor:grab">拖动</button></td><td style="width:96px">${escapeHtml(item.date)}</td><td style="width:92px">${escapeHtml(item.type)}</td><td style="width:76px">${Number(item.amount || 0).toFixed(2)}</td><td>${escapeHtml(item.description)}</td><td style="width:86px">${hasInvoice(item)}</td><td style="width:210px;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(invoiceSummary(item))}</td></tr>`).join(""); return `<div class="report-block"><h3>${category}合计：${sumAmount(matched).toFixed(2)}</h3>${matched.length ? `<table style="table-layout:fixed;width:100%"><thead><tr><th class="preview-sort-actions" style="width:52px">顺序</th><th style="width:96px">时间</th><th style="width:92px">费用类型</th><th style="width:76px">金额</th><th>费用说明</th><th style="width:86px">是否有发票</th><th style="width:210px">发票</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">暂无${category}明细</div>`}</div>`; }
-function bindReportPreviewSortEvents(root) { bindDragEvents(root, "[data-preview-drag]", "data-preview-drag", "tr[data-preview-row-id]"); }
+function reportBlock(category) { const matched = previewOrderedItems().filter((item) => item.category === category); const rows = matched.map((item) => `<tr data-preview-row-id="${item.id}" data-preview-category="${escapeHtml(category)}"><td class="preview-sort-actions" style="width:52px;white-space:nowrap"><button type="button" data-preview-drag="${item.id}" aria-label="按住拖动调整顺序" style="width:44px;height:24px;padding:0;font-size:12px;cursor:grab">拖动</button></td><td style="width:96px">${escapeHtml(item.date)}</td><td style="width:92px">${escapeHtml(item.type)}</td><td style="width:76px">${Number(item.amount || 0).toFixed(2)}</td><td>${escapeHtml(item.description)}</td><td style="width:86px">${hasInvoice(item)}</td><td style="width:210px;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${previewInvoiceLinks(item)}</td></tr>`).join(""); return `<div class="report-block"><h3>${category}合计：${sumAmount(matched).toFixed(2)}</h3>${matched.length ? `<table style="table-layout:fixed;width:100%"><thead><tr><th class="preview-sort-actions" style="width:52px">顺序</th><th style="width:96px">时间</th><th style="width:92px">费用类型</th><th style="width:76px">金额</th><th>费用说明</th><th style="width:86px">是否有发票</th><th style="width:210px">发票</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">暂无${category}明细</div>`}</div>`; }
+function bindReportPreviewSortEvents(root) { bindDragEvents(root, "[data-preview-drag]", "data-preview-drag", "tr[data-preview-row-id]"); root.querySelectorAll("[data-preview-invoice]").forEach((button) => button.addEventListener("click", () => openInvoicePreview(button.dataset.previewInvoice, button.dataset.previewInvoiceIndex))); }
+function previewInvoiceLinks(item) { const entries = invoiceEntries(item); if (!entries.length) return ""; return entries.map((entry, index) => { const name = escapeHtml(entry.name || `发票${index + 1}`); const amount = entry.amount ? ` 金额 ${escapeHtml(entry.amount)}` : ""; return entry.url || entry.file ? `<button type="button" data-preview-invoice="${item.id}" data-preview-invoice-index="${index}" style="border:0;background:transparent;color:#0f5b63;text-decoration:underline;cursor:pointer;padding:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom">${name}${amount}</button>` : `<span title="需重传 PDF 才能预览">${name}${amount}</span>`; }).join("、"); }
 function sumAmount(list) { return list.reduce((sum, item) => sum + Number(item.amount || 0), 0); }
 function invoiceSummary(item) { const names = invoiceEntries(item).map((entry) => entry.name).filter(Boolean).join("、"); const amounts = invoiceEntries(item).map((entry) => entry.amount).filter(Boolean).join("、"); return [names, amounts ? `金额 ${amounts}` : ""].filter(Boolean).join(" / "); }
 function hasInvoice(item) { return invoiceEntries(item).length ? "有票" : "无票"; }
