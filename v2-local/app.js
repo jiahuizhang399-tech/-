@@ -21,6 +21,7 @@ let suppressBeforeUnload = false;
 let draftDbPromise = null;
 let manualSortActive = false;
 let detailSearchKeyword = "";
+let refreshingWechatPreview = false;
 const $ = (selector) => document.querySelector(selector);
 const fileInput = $("#fileInput");
 const dropZone = $("#dropZone");
@@ -208,6 +209,7 @@ async function handleWechatBillScreenshots(fileList) {
           matchedItem.fileName = `${file.name} #${index + 1}`;
           matchedItem.imageUrl = imageUrl;
           matchedItem.screenshotPreviewUrl = await wechatAmountPreviewDataUrl(imageUrl);
+          matchedItem._wechatPreviewKey = wechatPreviewKey(matchedItem);
           matchedItem.rawText = `${matchedItem.rawText}\n微信长截图已匹配：${file.name} 第 ${index + 1} 条\n截图金额：${presetAmount}`;
           matchedExcelScreenshots += 1;
         }
@@ -236,6 +238,7 @@ async function handleWechatBillScreenshots(fileList) {
         invoiceAmount: "",
         invoice: "待补",
         source: "微信列表截图",
+        _wechatPreviewKey: rowImages.length > 30 ? `wechat-amount-preview-v2:${String(imageUrl || "").length}` : "",
       });
       if (rowImages.length > 30) createdLongRows.push({ id, imageUrl, index });
     }
@@ -314,6 +317,7 @@ async function addLocalWechatLongshotItem(entry, fileName) {
       fileName: `${fileName} #${entry.index || items.length + 1}`,
       imageUrl,
       screenshotPreviewUrl: await wechatAmountPreviewDataUrl(imageUrl),
+      _wechatPreviewKey: `wechat-amount-preview-v2:${String(imageUrl || "").length}`,
       rawText: `本地 RapidOCR 识别：${fileName}\n第 ${entry.index || ""} 条\n${entry.rawText || ""}`,
       date: entry.date || "",
       category: cat.category,
@@ -818,14 +822,45 @@ async function wechatAmountPreviewDataUrl(imageUrl) {
   if (!imageUrl) return "";
   try {
     const image = await loadImage(imageUrl);
-    const left = image.naturalWidth * .66;
-    const width = image.naturalWidth * .34;
-    return cropImageToDataUrl(image, left, 0, width, image.naturalHeight);
+    const sourceX = image.naturalWidth * .58;
+    const sourceWidth = image.naturalWidth * .42;
+    const canvas = document.createElement("canvas");
+    canvas.width = 360;
+    canvas.height = 300;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const scale = Math.min(canvas.width / sourceWidth, canvas.height / image.naturalHeight);
+    const drawWidth = Math.round(sourceWidth * scale);
+    const drawHeight = Math.round(image.naturalHeight * scale);
+    const left = Math.round((canvas.width - drawWidth) / 2);
+    const top = Math.round((canvas.height - drawHeight) / 2);
+    ctx.drawImage(image, sourceX, 0, sourceWidth, image.naturalHeight, left, top, drawWidth, drawHeight);
+    return canvas.toDataURL("image/jpeg", 0.9);
   } catch (error) {
     console.warn("微信账单金额缩略图生成失败，使用原单行截图。", error);
     return imageUrl;
   }
 }
+
+async function refreshWechatLongshotPreviews() {
+  if (refreshingWechatPreview) return;
+  const targets = items.filter((item) => isWechatLongshotItem(item) && item.imageUrl && item._wechatPreviewKey !== wechatPreviewKey(item));
+  if (!targets.length) return;
+  refreshingWechatPreview = true;
+  try {
+    for (const item of targets) {
+      item.screenshotPreviewUrl = await wechatAmountPreviewDataUrl(item.imageUrl);
+      item._wechatPreviewKey = wechatPreviewKey(item);
+    }
+    renderAll();
+    markDirtyAndSave();
+  } finally {
+    refreshingWechatPreview = false;
+  }
+}
+function wechatPreviewKey(item) { return `wechat-amount-preview-v2:${String(item.imageUrl || "").length}`; }
+function isWechatLongshotItem(item) { return item?.source === "微信长截图RapidOCR" || (item?.source === "微信列表截图" && /#\d+/.test(item.fileName || "")); }
 
 function cropImageToScaledDataUrl(image, left, top, width, height, scale = 2) {
   const canvas = document.createElement("canvas");
@@ -1724,7 +1759,7 @@ function collectMissingInvoiceNames() { const names = new Set(); for (const item
 async function collectPdfFiles(dirHandle, files, depth) { if (depth > 3 || !dirHandle?.values) return; for await (const handle of dirHandle.values()) { if (handle.kind === "file" && /\.pdf$/i.test(handle.name)) { files.set(normalizedInvoiceName(handle.name), await handle.getFile()); } else if (handle.kind === "directory") { await collectPdfFiles(handle, files, depth + 1); } } }
 function isDataUrl(value) { return /^data:image\//.test(String(value || "")); }
 function formatDraftTime(value) { const date = new Date(value); return Number.isFinite(date.getTime()) ? date.toLocaleString("zh-CN", { hour12: false }) : value; }
-function renderTable() { tableBody.innerHTML = ""; if (!items.length) { tableBody.innerHTML = `<tr><td colspan="9" class="empty">还没有明细。上传付款截图后会自动生成待确认行。</td></tr>`; return; } const ordered = filteredDetailItems(); if (!ordered.length) { tableBody.innerHTML = `<tr><td colspan="9" class="empty">没有找到匹配“${escapeHtml(detailSearchKeyword)}”的明细。清空搜索框可恢复全部。</td></tr>`; return; } for (const item of ordered) { const row = document.createElement("tr"); row.dataset.rowId = item.id; const invoiceStatus = hasInvoice(item); row.innerHTML = `<td><input type="date" value="${escapeHtml(item.date)}" data-id="${item.id}" data-field="date"></td><td>${categorySelect(item)}</td><td><input value="${escapeHtml(item.type)}" data-id="${item.id}" data-field="type"></td><td><input class="${item.amount ? "" : "needs-check"}" type="number" step="0.01" value="${escapeHtml(item.amount)}" placeholder="待填写" data-id="${item.id}" data-field="amount"></td><td><textarea data-id="${item.id}" data-field="description">${escapeHtml(item.description)}</textarea></td><td class="${invoiceStatus === "有票" ? "invoice-yes" : "invoice-no"}">${invoiceStatus}</td><td>${invoiceCell(item)}</td><td>${screenshotCell(item)}</td><td><div class="row-actions"><button class="delete" data-delete="${item.id}">删除本条</button><button class="drag-handle" type="button" data-drag-handle="${item.id}" aria-label="拖动调整顺序">拖动</button></div></td>`; tableBody.appendChild(row); } bindTableEvents(); }
+function renderTable() { tableBody.innerHTML = ""; if (!items.length) { tableBody.innerHTML = `<tr><td colspan="9" class="empty">还没有明细。上传付款截图后会自动生成待确认行。</td></tr>`; return; } refreshWechatLongshotPreviews(); const ordered = filteredDetailItems(); if (!ordered.length) { tableBody.innerHTML = `<tr><td colspan="9" class="empty">没有找到匹配“${escapeHtml(detailSearchKeyword)}”的明细。清空搜索框可恢复全部。</td></tr>`; return; } for (const item of ordered) { const row = document.createElement("tr"); row.dataset.rowId = item.id; const invoiceStatus = hasInvoice(item); row.innerHTML = `<td><input type="date" value="${escapeHtml(item.date)}" data-id="${item.id}" data-field="date"></td><td>${categorySelect(item)}</td><td><input value="${escapeHtml(item.type)}" data-id="${item.id}" data-field="type"></td><td><input class="${item.amount ? "" : "needs-check"}" type="number" step="0.01" value="${escapeHtml(item.amount)}" placeholder="待填写" data-id="${item.id}" data-field="amount"></td><td><textarea data-id="${item.id}" data-field="description">${escapeHtml(item.description)}</textarea></td><td class="${invoiceStatus === "有票" ? "invoice-yes" : "invoice-no"}">${invoiceStatus}</td><td>${invoiceCell(item)}</td><td>${screenshotCell(item)}</td><td><div class="row-actions"><button class="delete" data-delete="${item.id}">删除本条</button><button class="drag-handle" type="button" data-drag-handle="${item.id}" aria-label="拖动调整顺序">拖动</button></div></td>`; tableBody.appendChild(row); } bindTableEvents(); }
 function filterDetailRows() { syncTableControlsToItems(); detailSearchKeyword = normalizeText(detailSearchInput?.value || "").trim().toLowerCase(); renderTable(); if (detailSearchKeyword) setStatus(`已筛选出 ${filteredDetailItems().length} 条匹配明细。清空搜索框可恢复全部。`); }
 function filteredDetailItems() { const ordered = sortedItems(); return detailSearchKeyword ? ordered.filter((entry) => detailSearchText(entry).includes(detailSearchKeyword)) : ordered; }
 function searchDetailRow() { detailSearchKeyword = normalizeText(detailSearchInput?.value || "").trim().toLowerCase(); if (!detailSearchKeyword) { renderTable(); detailSearchInput?.focus(); return setStatus("请输入要搜索的明细文字、金额或日期。"); } syncTableControlsToItems(); renderTable(); const item = filteredDetailItems()[0]; if (!item) return setStatus(`没有找到包含“${detailSearchKeyword}”的明细。`); const row = tableBody.querySelector(`tr[data-row-id="${CSS.escape(item.id)}"]`); if (!row) return; tableBody.querySelectorAll("tr.search-hit").forEach((entry) => entry.classList.remove("search-hit")); row.classList.add("search-hit"); row.scrollIntoView({ behavior: "smooth", block: "center" }); setTimeout(() => { const control = row.querySelector('[data-field="description"]') || row.querySelector("input,select,textarea"); if (control) { control.focus(); if (control.select) control.select(); } }, 350); setStatus(`已定位到匹配明细：${item.description || item.amount || item.date || item.fileName || detailSearchKeyword}`); }
