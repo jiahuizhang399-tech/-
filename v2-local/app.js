@@ -822,27 +822,67 @@ async function wechatAmountPreviewDataUrl(imageUrl) {
   if (!imageUrl) return "";
   try {
     const image = await loadImage(imageUrl);
-    const sourceX = image.naturalWidth * .72;
-    const sourceWidth = image.naturalWidth * .25;
-    const sourceY = image.naturalHeight * .22;
-    const sourceHeight = image.naturalHeight * .56;
+    const source = detectWechatAmountCrop(image);
     const canvas = document.createElement("canvas");
     canvas.width = 360;
-    canvas.height = 300;
+    canvas.height = 240;
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    const scale = Math.min(canvas.width / sourceWidth, canvas.height / sourceHeight);
-    const drawWidth = Math.round(sourceWidth * scale);
-    const drawHeight = Math.round(sourceHeight * scale);
+    const scale = Math.min(canvas.width / source.width, canvas.height / source.height);
+    const drawWidth = Math.round(source.width * scale);
+    const drawHeight = Math.round(source.height * scale);
     const left = Math.round((canvas.width - drawWidth) / 2);
     const top = Math.round((canvas.height - drawHeight) / 2);
-    ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, left, top, drawWidth, drawHeight);
+    ctx.drawImage(image, source.x, source.y, source.width, source.height, left, top, drawWidth, drawHeight);
     return canvas.toDataURL("image/jpeg", 0.9);
   } catch (error) {
     console.warn("微信账单金额缩略图生成失败，使用原单行截图。", error);
     return imageUrl;
   }
+}
+
+function detectWechatAmountCrop(image) {
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(image, 0, 0);
+  const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  const scanLeft = Math.round(canvas.width * .58);
+  const scanRight = Math.round(canvas.width * .99);
+  const scanTop = Math.round(canvas.height * .12);
+  const scanBottom = Math.round(canvas.height * .88);
+  let minX = scanRight;
+  let maxX = scanLeft;
+  let minY = scanBottom;
+  let maxY = scanTop;
+  for (let y = scanTop; y < scanBottom; y += 1) {
+    for (let x = scanLeft; x < scanRight; x += 1) {
+      const offset = (y * canvas.width + x) * 4;
+      const r = data[offset];
+      const g = data[offset + 1];
+      const b = data[offset + 2];
+      if (r < 120 && g < 120 && b < 120) {
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+  if (maxX <= minX || maxY <= minY) {
+    return { x: image.naturalWidth * .80, y: image.naturalHeight * .30, width: image.naturalWidth * .16, height: image.naturalHeight * .40 };
+  }
+  const padX = Math.round(image.naturalWidth * .018);
+  const padY = Math.round(image.naturalHeight * .12);
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+  const width = Math.max(maxX - minX + padX * 2, image.naturalWidth * .09);
+  const height = Math.max(maxY - minY + padY * 2, image.naturalHeight * .28);
+  const x = Math.max(0, Math.min(image.naturalWidth - width, centerX - width / 2));
+  const y = Math.max(0, Math.min(image.naturalHeight - height, centerY - height / 2));
+  return { x, y, width, height };
 }
 
 async function refreshWechatLongshotPreviews() {
@@ -861,7 +901,7 @@ async function refreshWechatLongshotPreviews() {
     refreshingWechatPreview = false;
   }
 }
-function wechatPreviewKey(item) { return `wechat-amount-preview-v3:${String(item.imageUrl || "").length}`; }
+function wechatPreviewKey(item) { return `wechat-amount-preview-v4:${String(item.imageUrl || "").length}`; }
 function isWechatLongshotItem(item) { return item?.source === "微信长截图RapidOCR" || (item?.source === "微信列表截图" && /#\d+/.test(item.fileName || "")); }
 
 function cropImageToScaledDataUrl(image, left, top, width, height, scale = 2) {
@@ -2131,3 +2171,4 @@ function closePdfViewer() { pdfPreviewRun += 1; pdfViewer.classList.remove("open
 function escapeHtml(value) { return String(value ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 function setStatus(message) { statusBar.textContent = message; }
 renderAll();
+ 
