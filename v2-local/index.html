@@ -44,7 +44,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script defer src="app.js?v=local-v2-rapidocr-30"></script>
+  <script defer src="app.js?v=local-v2-rapidocr-31"></script>
 </head>
 <body>
   <main class="shell">
@@ -62,8 +62,8 @@
         <section class="panel upload-panel">
           <div class="drop-zone" id="dropZone"><input id="fileInput" type="file" accept="image/*" multiple><div class="drop-copy"><strong>上传付款截图</strong><span>识别付款金额；有退款时自动计算净额。</span></div></div>
           <div class="drop-zone invoice-drop-zone" id="invoiceDropZone"><input id="invoiceBatchInput" type="file" accept="application/pdf,.pdf,*/*" multiple><div class="drop-copy"><strong>上传发票 PDF</strong><span>可多选 PDF；安卓不支持多选时可重复追加。</span></div></div>
-          <div class="drop-zone wechat-drop-zone" id="wechatBillDropZone"><input id="wechatBillInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><div class="drop-copy"><strong>导入微信账单 Excel</strong><span>V2 本地测试：只导入支出，排除退款。</span></div></div>
-          <div class="drop-zone wechat-shot-drop-zone" id="wechatShotDropZone"><input id="wechatShotInput" type="file" accept="image/*" multiple><div class="drop-copy"><strong>导入微信账单截图</strong><span>V2 预览：自动裁成单行账单截图。</span></div></div>
+          <div class="drop-zone wechat-drop-zone" id="wechatBillDropZone"><input id="wechatBillInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><div class="drop-copy"><strong>导入微信账单 Excel</strong><span>只导入支出，排除退款。</span></div></div>
+          <div class="drop-zone wechat-shot-drop-zone" id="wechatShotDropZone"><input id="wechatShotInput" type="file" accept="image/*" multiple><div class="drop-copy"><strong>导入微信账单截图</strong><span>自动裁成单行账单截图。</span></div></div>
           <div class="project-fields"><label>关联项目编号<input id="projectInput" placeholder="如 CSP1991"></label><label>报销人<input id="personInput" placeholder="如 张家辉"></label></div>
         </section>
 
