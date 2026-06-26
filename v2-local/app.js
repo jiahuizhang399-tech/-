@@ -1187,7 +1187,9 @@ async function recognizePaymentImage(images, fileName) {
     { data: upperResult.data, offset: images.upperRegionBox, priority: 2 },
     { data: result.data, offset: { x: 0, y: 0 }, priority: 1 },
   ]);
-  return { text: `${result.data.text || ""}\n__VISUAL_AMOUNT__ ${visualAmount}\n__DATE_REGION__\n${dateResult.data.text || ""}\n__MAIN_AMOUNT_REGION__\n${mainAmountResult.data.text || ""}\n__LOWER_MAIN_AMOUNT_REGION__\n${lowerMainAmountResult.data.text || ""}\n__AMOUNT_REGION__\n${amountResult.data.text || ""}\n__MIDDLE_AMOUNT_REGION__\n${middleResult.data.text || ""}\n__TOP_AMOUNT_REGION__\n${topAmountResult.data.text || ""}\n__UPPER_REGION__\n${upperResult.data.text || ""}`, amountPreviewCandidates, amountPreviewBox: selectBestAmountPreviewBox(amountPreviewCandidates, visualAmount, images.fullWidth, images.fullHeight) };
+  const text = `${result.data.text || ""}\n__VISUAL_AMOUNT__ ${visualAmount}\n__DATE_REGION__\n${dateResult.data.text || ""}\n__MAIN_AMOUNT_REGION__\n${mainAmountResult.data.text || ""}\n__LOWER_MAIN_AMOUNT_REGION__\n${lowerMainAmountResult.data.text || ""}\n__AMOUNT_REGION__\n${amountResult.data.text || ""}\n__MIDDLE_AMOUNT_REGION__\n${middleResult.data.text || ""}\n__TOP_AMOUNT_REGION__\n${topAmountResult.data.text || ""}\n__UPPER_REGION__\n${upperResult.data.text || ""}`;
+  const previewAmount = guessAnyPaymentAmount(text, fileName) || visualAmount;
+  return { text, amountPreviewCandidates, amountPreviewBox: selectBestAmountPreviewBox(amountPreviewCandidates, previewAmount, images.fullWidth, images.fullHeight) };
 }
 
 async function runLimited(tasks, limit) {
@@ -1328,10 +1330,10 @@ function explainPaymentAmount(text) {
 
 function findPrimaryPaymentAmount(text) {
   const lines = String(text || "").split(/\n+/).map(normalizeText).filter(Boolean);
-  const visual = findVisualAmount(lines, text);
-  if (visual) return visual;
   const marked = findMarkedAmount(lines);
   if (marked) return marked;
+  const visual = findVisualAmount(lines, text);
+  if (visual) return visual;
   const candidates = [];
   lines.forEach((line, index) => {
     const matches = [...line.matchAll(/(?:^|[^\d])([-+一ー−﹣－—–]?\s*\d{1,6}\s*[.,]\s*\d{1,2})(?=\D|$)/g)];
@@ -1360,9 +1362,19 @@ function findVisualAmount(lines, rawText = "") {
     const amount = normalizeAmount(match && match[1]);
     if (!amount) continue;
     const context = normalizeText(rawText).slice(0, 600);
-    if (/[-−﹣－—–]\s*[¥￥]?\s*\d/.test(context) || /支付成功|交易成功|当前状态|付款|支付/.test(context)) return amount;
+    const markedText = amountMarkedText(rawText);
+    const markedAmounts = [...markedText.matchAll(/[-+¥￥]?\s*\d{1,6}(?:[.,]\d{1,2})?/g)].map((entry) => normalizeAmount(entry[0])).filter(Boolean);
+    if (markedAmounts.some((entry) => Math.abs(entry - amount) < .01)) return amount;
+    if ((/[-−﹣－—–]\s*[¥￥]?\s*\d/.test(context) || /支付成功|交易成功|当前状态|付款|支付/.test(context)) && !markedAmounts.length) return amount;
   }
   return 0;
+}
+
+function amountMarkedText(rawText) {
+  return String(rawText || "")
+    .split(/__main_amount_region__|__lower_main_amount_region__|__top_amount_region__|__middle_amount_region__|__amount_region__|__upper_region__/i)
+    .slice(1)
+    .join(" ");
 }
 
 function extractLargestVisualAmount(data) {
@@ -1561,21 +1573,39 @@ function guessDate(text) {
       const year = hasYear ? Number(match[1]) : currentYear;
       const month = Number(hasYear ? match[2] : match[1]);
       const day = Number(hasYear ? match[3] : match[2]);
-      const value = normalizeDateParts(year, month, day);
+      const value = normalizePaymentDateParts(year, month, day, hasYear);
       if (!value) continue;
-      const windowText = normalized.slice(Math.max(0, match.index - 24), match.index + match[0].length + 24);
+      const windowText = normalized.slice(Math.max(0, match.index - 48), match.index + match[0].length + 48);
       let score = 0;
-      if (/支付时间|交易时间|付款时间|完成时间|创建时间|下单时间|消费时间/.test(windowText)) score += 100;
-      if (/__date_region__/.test(windowText)) score += 80;
+      if (/支付时间|交易时间|付款时间|完成时间|创建时间|下单时间|消费时间/.test(windowText)) score += 160;
+      if (isInsideMarkedSection(normalized, match.index, "__date_region__")) score += 140;
       if (hasYear) score += 30;
       if (/\d{1,2}\s*[:：]\s*\d{1,2}/.test(match[0])) score += 20;
-      if (/发票|开票|账单周期|有效期|订单|单号/.test(windowText)) score -= 60;
+      if (/发票|开票|账单周期|有效期|订单|单号|商户号|条形码|二维码/.test(windowText)) score -= 180;
+      if (!hasYear && !/支付时间|交易时间|付款时间|完成时间|创建时间|下单时间|消费时间/.test(windowText) && !isInsideMarkedSection(normalized, match.index, "__date_region__")) score -= 80;
       candidates.push({ value, score, index: match.index });
     }
   }
   if (!candidates.length) return "";
   candidates.sort((a, b) => b.score - a.score || a.index - b.index);
   return candidates[0].value;
+}
+
+function isInsideMarkedSection(text, index, marker) {
+  const start = text.lastIndexOf(marker, index);
+  if (start < 0) return false;
+  const next = text.slice(start + marker.length).search(/__\w+_region__/);
+  return next < 0 || start + marker.length + next > index;
+}
+
+function normalizePaymentDateParts(year, month, day, hasYear) {
+  let value = normalizeDateParts(year, month, day);
+  if (!value) return "";
+  const parsed = new Date(`${value}T00:00:00`);
+  const now = new Date();
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  if (!hasYear && parsed > tomorrow) value = normalizeDateParts(year - 1, month, day);
+  return value;
 }
 
 function normalizeDateParts(year, month, day) {
