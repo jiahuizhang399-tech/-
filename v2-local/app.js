@@ -207,7 +207,7 @@ async function handleWechatBillScreenshots(fileList) {
         if (matchedItem) {
           matchedItem.fileName = `${file.name} #${index + 1}`;
           matchedItem.imageUrl = imageUrl;
-          matchedItem.screenshotPreviewUrl = imageUrl;
+          matchedItem.screenshotPreviewUrl = await wechatAmountPreviewDataUrl(imageUrl);
           matchedItem.rawText = `${matchedItem.rawText}\n微信长截图已匹配：${file.name} 第 ${index + 1} 条\n截图金额：${presetAmount}`;
           matchedExcelScreenshots += 1;
         }
@@ -221,7 +221,7 @@ async function handleWechatBillScreenshots(fileList) {
         sortOrder: nextSortOrder(),
         fileName: `${file.name} #${index + 1}`,
         imageUrl,
-        screenshotPreviewUrl: imageUrl,
+        screenshotPreviewUrl: rowImages.length > 30 ? await wechatAmountPreviewDataUrl(imageUrl) : imageUrl,
         rawText: `微信账单列表截图导入：${file.name}\n第 ${index + 1} 条\n说明：${presetDescription}\n日期：${presetDate}\n金额：${presetAmount}${excelMatch ? "\n已按微信 Excel 明细自动匹配日期和说明。" : ""}`,
         date: presetDate,
         category: cat.category,
@@ -295,7 +295,7 @@ async function importLocalWechatLongshotResultInChunks(result, fileName) {
   for (let start = 0; start < entries.length; start += 15) {
     setStatus(`正在写入本地 RapidOCR 识别结果 ${Math.min(start + 15, entries.length)}/${entries.length}：${fileName}`);
     for (const entry of entries.slice(start, start + 15)) {
-      addLocalWechatLongshotItem(entry, fileName);
+      await addLocalWechatLongshotItem(entry, fileName);
     }
     markDirtyAndSave();
     renderAll();
@@ -304,15 +304,16 @@ async function importLocalWechatLongshotResultInChunks(result, fileName) {
   setStatus(`识别完成，请继续上传发票 PDF 或检查明细。已通过本地 RapidOCR 从 ${fileName} 识别 ${entries.length} 条，包含日期、说明、金额和裁切截图。`);
 }
 
-function addLocalWechatLongshotItem(entry, fileName) {
+async function addLocalWechatLongshotItem(entry, fileName) {
     const description = entry.description || `微信账单截图第 ${entry.index || items.length + 1} 条`;
     const cat = guessCategory(normalizeText(description));
+    const imageUrl = entry.rowImage || "";
     items.push({
       id: crypto.randomUUID(),
       sortOrder: nextSortOrder(),
       fileName: `${fileName} #${entry.index || items.length + 1}`,
-      imageUrl: entry.rowImage || "",
-      screenshotPreviewUrl: entry.rowImage || "",
+      imageUrl,
+      screenshotPreviewUrl: await wechatAmountPreviewDataUrl(imageUrl),
       rawText: `本地 RapidOCR 识别：${fileName}\n第 ${entry.index || ""} 条\n${entry.rawText || ""}`,
       date: entry.date || "",
       category: cat.category,
@@ -811,6 +812,19 @@ function cropImageToDataUrl(image, left, top, width, height) {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(image, Math.round(left), Math.round(top), Math.round(width), Math.round(height), 0, 0, canvas.width, canvas.height);
   return canvas.toDataURL("image/jpeg", 0.9);
+}
+
+async function wechatAmountPreviewDataUrl(imageUrl) {
+  if (!imageUrl) return "";
+  try {
+    const image = await loadImage(imageUrl);
+    const left = image.naturalWidth * .66;
+    const width = image.naturalWidth * .34;
+    return cropImageToDataUrl(image, left, 0, width, image.naturalHeight);
+  } catch (error) {
+    console.warn("微信账单金额缩略图生成失败，使用原单行截图。", error);
+    return imageUrl;
+  }
 }
 
 function cropImageToScaledDataUrl(image, left, top, width, height, scale = 2) {
