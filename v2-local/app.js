@@ -822,20 +822,22 @@ async function wechatAmountPreviewDataUrl(imageUrl) {
   if (!imageUrl) return "";
   try {
     const image = await loadImage(imageUrl);
-    const sourceX = image.naturalWidth * .58;
-    const sourceWidth = image.naturalWidth * .42;
+    const sourceX = image.naturalWidth * .72;
+    const sourceWidth = image.naturalWidth * .25;
+    const sourceY = image.naturalHeight * .22;
+    const sourceHeight = image.naturalHeight * .56;
     const canvas = document.createElement("canvas");
     canvas.width = 360;
     canvas.height = 300;
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    const scale = Math.min(canvas.width / sourceWidth, canvas.height / image.naturalHeight);
+    const scale = Math.min(canvas.width / sourceWidth, canvas.height / sourceHeight);
     const drawWidth = Math.round(sourceWidth * scale);
-    const drawHeight = Math.round(image.naturalHeight * scale);
+    const drawHeight = Math.round(sourceHeight * scale);
     const left = Math.round((canvas.width - drawWidth) / 2);
     const top = Math.round((canvas.height - drawHeight) / 2);
-    ctx.drawImage(image, sourceX, 0, sourceWidth, image.naturalHeight, left, top, drawWidth, drawHeight);
+    ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, left, top, drawWidth, drawHeight);
     return canvas.toDataURL("image/jpeg", 0.9);
   } catch (error) {
     console.warn("微信账单金额缩略图生成失败，使用原单行截图。", error);
@@ -859,7 +861,7 @@ async function refreshWechatLongshotPreviews() {
     refreshingWechatPreview = false;
   }
 }
-function wechatPreviewKey(item) { return `wechat-amount-preview-v2:${String(item.imageUrl || "").length}`; }
+function wechatPreviewKey(item) { return `wechat-amount-preview-v3:${String(item.imageUrl || "").length}`; }
 function isWechatLongshotItem(item) { return item?.source === "微信长截图RapidOCR" || (item?.source === "微信列表截图" && /#\d+/.test(item.fileName || "")); }
 
 function cropImageToScaledDataUrl(image, left, top, width, height, scale = 2) {
