@@ -473,49 +473,43 @@ async function recognizeWechatLongRowsInBatches(fileName, rows) {
 }
 
 async function recognizeWechatLongRowBatch(rows) {
-  const rowHeight = 132;
-  const canvas = document.createElement("canvas");
-  canvas.width = 1120;
-  canvas.height = rows.length * rowHeight;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const loaded = await Promise.all(rows.map((row) => loadImage(row.imageUrl)));
-  loaded.forEach((image, index) => {
+  const output = [];
+  for (const row of rows) {
+    output.push(await recognizeWechatLongSingleRow(row));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  }
+  return output;
+}
+
+async function recognizeWechatLongSingleRow(row) {
+  try {
+    const image = await loadImage(row.imageUrl);
     const sourceX = Math.round(image.naturalWidth * 0.145);
     const sourceY = Math.round(image.naturalHeight * 0.04);
     const sourceWidth = Math.round(image.naturalWidth * 0.58);
     const sourceHeight = Math.round(image.naturalHeight * 0.78);
-    ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, index * rowHeight + 10, canvas.width, rowHeight - 20);
-  });
-  thresholdCanvas(ctx, canvas.width, canvas.height, 224);
-  try {
-    const blob = dataUrlToBlob(canvas.toDataURL("image/png"));
-    let result;
-    if (Tesseract.createWorker) {
-      const worker = await Tesseract.createWorker("chi_sim+eng");
-      try {
-        result = await worker.recognize(blob);
-      } finally {
-        await worker.terminate();
-      }
-    } else {
-      result = await Tesseract.recognize(blob, "chi_sim+eng");
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, sourceWidth * 3);
+    canvas.height = Math.max(1, sourceHeight * 3);
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
+    const result = await Tesseract.recognize(dataUrlToBlob(canvas.toDataURL("image/png")), "chi_sim+eng");
+    const lines = (Array.isArray(result.data?.lines) && result.data.lines.length ? result.data.lines.map((line) => line.text) : String(result.data?.text || "").split(/\n+/))
+      .map(cleanWechatOcrLine)
+      .filter(Boolean);
+    let date = "";
+    let description = "";
+    for (const text of lines) {
+      date = date || normalizeWechatFutureDate(parseWechatRowDate(text));
+      if (!description && /[\u4e00-\u9fa5a-zA-Z]{2,}/.test(text) && !/\d{1,2}\s*[月Hh日B8]\s*\d{1,2}|\d{1,2}[:：.]\d{1,2}/.test(text)) description = cleanProductName(text);
     }
-    const output = rows.map((row) => ({ id: row.id, description: "", date: "" }));
-    const lines = Array.isArray(result.data?.lines) && result.data.lines.length ? result.data.lines : [];
-    for (const line of lines) {
-      const text = cleanWechatOcrLine(line.text);
-      if (!text) continue;
-      const rowIndex = Math.max(0, Math.min(output.length - 1, Math.floor(Number(line.bbox?.y0 ?? 0) / rowHeight)));
-      const date = normalizeWechatFutureDate(parseWechatRowDate(text));
-      if (date) output[rowIndex].date = date;
-      else if (!output[rowIndex].description && /[\u4e00-\u9fa5a-zA-Z]{2,}/.test(text)) output[rowIndex].description = cleanProductName(text);
-    }
-    return output;
+    if (!description && lines.length) description = cleanProductName(lines[0]);
+    return { id: row.id, description, date };
   } catch (error) {
     console.error(error);
-    return rows.map((row) => ({ id: row.id, description: "", date: "" }));
+    return { id: row.id, description: "", date: "" };
   }
 }
 
@@ -1094,6 +1088,9 @@ function parseWechatRowDate(text) {
   const normalized = normalizeText(text)
     .replace(/[il|]/g, "1")
     .replace(/[oO]/g, "0")
+    .replace(/[Hh]/g, "月")
+    .replace(/[B8}]/g, "日")
+    .replace(/[.。]/g, ":")
     .replace(/\s+/g, " ");
   const currentYear = new Date().getFullYear();
   const match = normalized.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*(?:日)?/) || normalized.match(/(?:^|\D)(\d{1,2})\s+[月\s]?\s*(\d{1,2})(?=\D|$)/);
