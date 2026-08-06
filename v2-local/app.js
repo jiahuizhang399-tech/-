@@ -177,6 +177,7 @@ async function handleWechatBillScreenshots(fileList) {
   let total = 0;
   let localOcrImported = 0;
   let matchedExcelScreenshots = 0;
+  let browserOcrQueued = 0;
   for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
     const file = files[fileIndex];
     setStatus(`正在切分微信账单截图 ${fileIndex + 1}/${files.length}：${file.name}`);
@@ -245,13 +246,20 @@ async function handleWechatBillScreenshots(fileList) {
     total += rowImages.length;
     renderAll();
     if (rowImages.length > 30 && !excelMatches.some(Boolean)) {
-      setStatus(`已从微信长截图切出 ${rowImages.length} 行并填入金额。要识别准确日期和说明，请先启动本地 RapidOCR 服务：python3 ocr_server.py`);
+      const ids = createdLongRows.map((row) => row.id);
+      if (ids.length && window.Tesseract) {
+        browserOcrQueued += ids.length;
+        startWechatLongOcrJob(file.name, ids);
+        setTimeout(resumeWechatLongOcrIfNeeded, 200);
+      } else {
+        setStatus(`已从微信长截图切出 ${rowImages.length} 行并填入金额。当前浏览器 OCR 组件未加载完成，日期和说明可稍后刷新页面继续识别。`);
+      }
     }
     else await recognizeWechatBillRowsSequentially(file.name, rowImages.length, false);
   }
   markDirtyAndSave();
   if (wechatShotInput) wechatShotInput.value = "";
-  setStatus(localOcrImported ? `识别完成，请继续上传发票 PDF 或检查明细。已通过本地 RapidOCR 识别 ${localOcrImported}/${total} 条，包含日期、说明、金额和裁切截图。` : matchedExcelScreenshots ? `已从微信账单截图切出 ${total} 条单行截图，已按微信 Excel 自动匹配 ${matchedExcelScreenshots} 条截图，并使用 Excel 的准确日期和说明。` : `已从微信账单截图切出 ${total} 条单行截图，已先填入金额；说明和日期正在后台自动补识别。`);
+  setStatus(localOcrImported ? `识别完成，请继续上传发票 PDF 或检查明细。已通过本地 RapidOCR 识别 ${localOcrImported}/${total} 条，包含日期、说明、金额和裁切截图。` : matchedExcelScreenshots ? `已从微信账单截图切出 ${total} 条单行截图，已按微信 Excel 自动匹配 ${matchedExcelScreenshots} 条截图，并使用 Excel 的准确日期和说明。` : browserOcrQueued ? `已从微信长截图切出 ${total} 条单行截图并填入金额，正在用浏览器 OCR 分段补识别 ${browserOcrQueued} 条日期和说明。` : `已从微信账单截图切出 ${total} 条单行截图，已先填入金额；未能启动日期和说明补识别，可刷新页面后重试。`);
 }
 
 async function tryLocalWechatLongshotOcr(file) {
@@ -269,7 +277,7 @@ async function tryLocalWechatLongshotOcr(file) {
     return result;
   } catch (error) {
     console.warn("本地 RapidOCR 服务不可用，回退浏览器识别。", error);
-    setStatus("本地 RapidOCR 服务未启动，回退到浏览器金额识别。若要准确日期和说明，请先启动 ocr_server.py。");
+    setStatus("本地 RapidOCR 服务未启动，回退到浏览器 OCR 识别。会先填入金额，再分段补识别日期和说明。");
     return null;
   }
 }
@@ -339,8 +347,17 @@ function startWechatLongOcrJob(fileName, ids) {
   const chunks = [];
   const rowsPerChunk = 5;
   for (let index = 0; index < ids.length; index += rowsPerChunk) chunks.push(ids.slice(index, index + rowsPerChunk));
-  localStorage.setItem(wechatLongOcrKey, JSON.stringify({ fileName, ids, chunks, chunkIndex: 0, startedAt: new Date().toISOString() }));
-  setStatus(`已先填入金额，共 ${ids.length} 行，将按每段 ${rowsPerChunk} 行切成 ${chunks.length} 段继续识别说明和日期：${fileName}`);
+  let job = null;
+  try { job = JSON.parse(localStorage.getItem(wechatLongOcrKey) || "null"); } catch { job = null; }
+  if (job && Array.isArray(job.chunks) && Number(job.chunkIndex || 0) < job.chunks.length) {
+    job.fileName = `${job.fileName || "微信长截图"}、${fileName}`;
+    job.ids = [...(Array.isArray(job.ids) ? job.ids : []), ...ids];
+    job.chunks = [...job.chunks, ...chunks];
+  } else {
+    job = { fileName, ids, chunks, chunkIndex: 0, startedAt: new Date().toISOString() };
+  }
+  localStorage.setItem(wechatLongOcrKey, JSON.stringify(job));
+  setStatus(`已先填入金额，本次新增 ${ids.length} 行，将按每段 ${rowsPerChunk} 行继续识别说明和日期：${fileName}`);
 }
 
 function matchWechatLongScreenshotWithExcel(amounts) {
