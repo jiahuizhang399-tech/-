@@ -182,6 +182,7 @@ async function handleWechatBillScreenshots(fileList) {
     const file = files[fileIndex];
     setStatus(`正在切分微信账单截图 ${fileIndex + 1}/${files.length}：${file.name}`);
     const useLocalOcr = await isWechatLongshotFile(file);
+    const isLongWechatShot = useLocalOcr;
     const localParsed = useLocalOcr ? await tryLocalWechatLongshotOcr(file) : null;
     if (localParsed) {
       await importLocalWechatLongshotResult(localParsed, file.name);
@@ -192,8 +193,8 @@ async function handleWechatBillScreenshots(fileList) {
       continue;
     }
     const rowImages = await splitWechatBillScreenshot(file);
-    const longShotAmounts = rowImages.length > 30 ? await recognizeWechatLongScreenshotAmounts(file) : [];
-    const excelMatches = rowImages.length > 30 ? matchWechatLongScreenshotWithExcel(longShotAmounts) : [];
+    const longShotAmounts = isLongWechatShot ? await recognizeWechatLongScreenshotAmounts(file) : [];
+    const excelMatches = isLongWechatShot ? matchWechatLongScreenshotWithExcel(longShotAmounts) : [];
     const longShotDetails = [];
     const longShotDates = [];
     const createdLongRows = [];
@@ -203,8 +204,8 @@ async function handleWechatBillScreenshots(fileList) {
       const excelMatch = excelMatches[index] || null;
       const presetDetail = longShotDetails[index] || {};
       const id = crypto.randomUUID();
-      if (rowImages.length > 30 && !presetAmount) continue;
-      if (rowImages.length > 30 && excelMatch?.id) {
+      if (isLongWechatShot && !presetAmount) continue;
+      if (isLongWechatShot && excelMatch?.id) {
         const matchedItem = items.find((item) => item.id === excelMatch.id);
         if (matchedItem) {
           matchedItem.fileName = `${file.name} #${index + 1}`;
@@ -224,7 +225,7 @@ async function handleWechatBillScreenshots(fileList) {
         sortOrder: nextSortOrder(),
         fileName: `${file.name} #${index + 1}`,
         imageUrl,
-        screenshotPreviewUrl: rowImages.length > 30 ? await wechatAmountPreviewDataUrl(imageUrl) : imageUrl,
+        screenshotPreviewUrl: isLongWechatShot ? await wechatAmountPreviewDataUrl(imageUrl) : imageUrl,
         rawText: `微信账单列表截图导入：${file.name}\n第 ${index + 1} 条\n说明：${presetDescription}\n日期：${presetDate}\n金额：${presetAmount}${excelMatch ? "\n已按微信 Excel 明细自动匹配日期和说明。" : ""}`,
         date: presetDate,
         category: cat.category,
@@ -239,13 +240,13 @@ async function handleWechatBillScreenshots(fileList) {
         invoiceAmount: "",
         invoice: "待补",
         source: "微信列表截图",
-        _wechatPreviewKey: rowImages.length > 30 ? `wechat-amount-preview-v2:${String(imageUrl || "").length}` : "",
+        _wechatPreviewKey: isLongWechatShot ? `wechat-amount-preview-v2:${String(imageUrl || "").length}` : "",
       });
-      if (rowImages.length > 30) createdLongRows.push({ id, imageUrl, index });
+      if (isLongWechatShot) createdLongRows.push({ id, imageUrl, index });
     }
     total += rowImages.length;
     renderAll();
-    if (rowImages.length > 30 && !excelMatches.some(Boolean)) {
+    if (isLongWechatShot && !excelMatches.some(Boolean)) {
       const ids = createdLongRows.map((row) => row.id);
       if (ids.length && window.Tesseract) {
         browserOcrQueued += ids.length;
