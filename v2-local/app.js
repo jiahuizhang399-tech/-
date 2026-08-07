@@ -413,8 +413,16 @@ async function resumeWechatLongOcrIfNeeded() {
   try {
     setStatus(`正在识别微信长截图第 ${chunkIndex + 1}/${chunks.length} 段，本段 ${rows.length} 行：${job.fileName}`);
     const details = await recognizeWechatLongRowBatch(rows);
+    if (!details.some((detail) => detail.description || detail.date) && Number(job.emptyRetry || 0) < 2) {
+      job.emptyRetry = Number(job.emptyRetry || 0) + 1;
+      localStorage.setItem(wechatLongOcrKey, JSON.stringify(job));
+      setStatus(`微信长截图第 ${chunkIndex + 1}/${chunks.length} 段暂未识别到说明和日期，正在重试第 ${job.emptyRetry}/2 次。`);
+      setTimeout(resumeWechatLongOcrIfNeeded, 1200);
+      return;
+    }
     for (const detail of details) applyWechatLongOcrDetail(detail);
     job.chunkIndex = chunkIndex + 1;
+    job.emptyRetry = 0;
     localStorage.setItem(wechatLongOcrKey, JSON.stringify(job));
     markDirtyAndSave();
     renderAll();
