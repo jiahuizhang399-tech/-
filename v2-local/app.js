@@ -22,6 +22,7 @@ let draftDbPromise = null;
 let manualSortActive = false;
 let detailSearchKeyword = "";
 let refreshingWechatPreview = false;
+let wechatLongOcrRunning = false;
 const $ = (selector) => document.querySelector(selector);
 const fileInput = $("#fileInput");
 const dropZone = $("#dropZone");
@@ -142,8 +143,8 @@ async function handleFiles(fileList) {
     }
     const parsed = parsePaymentText(text, file.name);
     items.push({ id: crypto.randomUUID(), sortOrder: nextSortOrder(), fileName: file.name, imageUrl, screenshotPreviewUrl, rawText: `${text}\n__AMOUNT_EXPLAIN__ ${explainPaymentAmount(text)}`, screenshotAmount: parsed.amount, invoiceFile: null, invoiceFileName: "", invoiceFileUrl: "", invoiceLink: "", invoiceAmount: "", ...parsed });
-    markDirtyAndSave();
     renderAll();
+    persistDraftWithoutSync();
   }
   const missing = items.filter((item) => !item.amount).length;
   setStatus(missing ? `已处理 ${files.length} 张截图，其中 ${missing} 条未识别到金额。` : `已处理 ${files.length} 张截图。`);
@@ -159,8 +160,8 @@ async function handleWechatBillFile(file) {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
     const imported = importWechatBillRows(rows, file.name);
-    markDirtyAndSave();
     renderAll();
+    persistDraftWithoutSync();
     setStatus(imported.skipped ? `已导入微信账单 ${imported.count} 条支出，跳过退款/收入/无效记录 ${imported.skipped} 条。请继续补完整付款截图。` : `已导入微信账单 ${imported.count} 条支出。请继续补完整付款截图。`);
   } catch (error) {
     console.error(error);
@@ -309,8 +310,8 @@ async function importLocalWechatLongshotResultInChunks(result, fileName) {
     for (const entry of entries.slice(start, start + 15)) {
       await addLocalWechatLongshotItem(entry, fileName);
     }
-    markDirtyAndSave();
     renderAll();
+    persistDraftWithoutSync();
     await new Promise((resolve) => setTimeout(resolve, 80));
   }
   setStatus(`识别完成，请继续上传发票 PDF 或检查明细。已通过本地 RapidOCR 从 ${fileName} 识别 ${entries.length} 条，包含日期、说明、金额和裁切截图。`);
@@ -397,6 +398,7 @@ function sameMoney(a, b) {
 }
 
 async function resumeWechatLongOcrIfNeeded() {
+  if (wechatLongOcrRunning) return;
   const raw = localStorage.getItem(wechatLongOcrKey);
   if (!raw) return;
   let job;
@@ -410,6 +412,7 @@ async function resumeWechatLongOcrIfNeeded() {
     return item ? { id, imageUrl: item.imageUrl, index: chunkIndex * 5 + offset } : null;
   }).filter(Boolean);
   if (!rows.length) { localStorage.removeItem(wechatLongOcrKey); return; }
+  wechatLongOcrRunning = true;
   try {
     setStatus(`正在识别微信长截图第 ${chunkIndex + 1}/${chunks.length} 段，本段 ${rows.length} 行：${job.fileName}`);
     const details = await recognizeWechatLongRowBatch(rows);
@@ -417,39 +420,85 @@ async function resumeWechatLongOcrIfNeeded() {
       job.emptyRetry = Number(job.emptyRetry || 0) + 1;
       localStorage.setItem(wechatLongOcrKey, JSON.stringify(job));
       setStatus(`微信长截图第 ${chunkIndex + 1}/${chunks.length} 段暂未识别到说明和日期，正在重试第 ${job.emptyRetry}/2 次。`);
-      setTimeout(resumeWechatLongOcrIfNeeded, 1200);
+      setTimeout(resumeWechatLongOcrIfNeeded, 2000);
       return;
     }
     for (const detail of details) applyWechatLongOcrDetail(detail);
     job.chunkIndex = chunkIndex + 1;
     job.emptyRetry = 0;
     localStorage.setItem(wechatLongOcrKey, JSON.stringify(job));
-    markDirtyAndSave();
     renderAll();
+    await persistDraftWithoutSync();
     if (job.chunkIndex >= chunks.length) {
+      const finalStats = await finalizeWechatLongOcrJob(job);
       localStorage.removeItem(wechatLongOcrKey);
-      setStatus(`微信长截图说明和日期识别完成：${job.fileName}，共 ${chunks.length} 段。`);
+      setStatus(`微信长截图说明和日期识别完成：${job.fileName}，共 ${chunks.length} 段；已填说明 ${finalStats.descriptions} 条，日期 ${finalStats.dates} 条。`);
       return;
     }
     setStatus(`已完成第 ${job.chunkIndex}/${chunks.length} 段，正在继续下一段。`);
-    setTimeout(resumeWechatLongOcrIfNeeded, 500);
+    setTimeout(resumeWechatLongOcrIfNeeded, 1500);
   } catch (error) {
     console.error(error);
     setStatus(`说明和日期识别中断：${String(error?.message || error)}。刷新页面后会从当前进度继续。`);
+  } finally {
+    wechatLongOcrRunning = false;
   }
+}
+
+async function finalizeWechatLongOcrJob(job) {
+  const ids = Array.isArray(job.ids) ? job.ids : [];
+  let pending = ids
+    .map((id) => items.find((entry) => entry.id === id))
+    .filter((item) => item && item.imageUrl && (!item.date || /^微信账单截图第/.test(item.description || "")));
+  if (!pending.length) return { descriptions: 0, dates: 0 };
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  for (let start = 0; start < pending.length; start += 5) {
+    const rows = pending.slice(start, start + 5).map((item) => ({ id: item.id, imageUrl: item.imageUrl }));
+    setStatus(`正在最终补写微信长截图说明和日期 ${Math.min(start + rows.length, pending.length)}/${pending.length}：${job.fileName}`);
+    const details = await recognizeWechatLongRowBatch(rows);
+    for (const detail of details) applyWechatLongOcrDetail(detail);
+    renderAll();
+    await persistDraftWithoutSync();
+    await new Promise((resolve) => setTimeout(resolve, 80));
+  }
+  pending = ids
+    .map((id) => items.find((entry) => entry.id === id))
+    .filter((item) => item && item.imageUrl && (!item.date || /^微信账单截图第/.test(item.description || "")));
+  for (let index = 0; index < pending.length; index += 1) {
+    const item = pending[index];
+    setStatus(`正在逐行补写微信长截图说明和日期 ${index + 1}/${pending.length}：${job.fileName}`);
+    applyWechatLongOcrDetail(await recognizeWechatLongSingleRow({ id: item.id, imageUrl: item.imageUrl }));
+    renderAll();
+    await persistDraftWithoutSync();
+    await new Promise((resolve) => setTimeout(resolve, 120));
+  }
+  const after = countWechatLongOcrFilled(ids);
+  return after;
+}
+
+function countWechatLongOcrFilled(ids) {
+  const entries = (Array.isArray(ids) ? ids : [])
+    .map((id) => items.find((entry) => entry.id === id))
+    .filter(Boolean);
+  return {
+    descriptions: entries.filter((item) => item.description && !/^微信账单截图第/.test(item.description)).length,
+    dates: entries.filter((item) => item.date).length,
+  };
 }
 
 function applyWechatLongOcrDetail(detail) {
   const item = items.find((entry) => entry.id === detail.id);
   if (!item) return;
-  if (detail.description) {
-    item.description = detail.description;
-    const cat = guessCategory(normalizeText(detail.description));
+  const description = cleanProductName(detail.description || "");
+  const isPlaceholder = !item.description || /^微信账单截图第/.test(item.description || "");
+  if (description && isPlaceholder) {
+    item.description = description;
+    const cat = guessCategory(normalizeText(description));
     item.category = cat.category;
     item.type = cat.type;
   }
-  if (detail.date) item.date = detail.date;
-  item.rawText = `${item.rawText}\n自动分段识别说明：${detail.description || ""}\n自动分段识别日期：${detail.date || ""}`;
+  if (detail.date && !item.date) item.date = detail.date;
+  item.rawText = `${item.rawText}\n自动分段识别说明：${description || ""}\n自动分段识别日期：${detail.date || ""}`;
 }
 
 async function recognizeWechatLongRowsInBatches(fileName, rows) {
@@ -462,17 +511,10 @@ async function recognizeWechatLongRowsInBatches(fileName, rows) {
     for (const detail of details) {
       const item = items.find((entry) => entry.id === detail.id);
       if (!item) continue;
-      if (detail.description) {
-        item.description = detail.description;
-        const cat = guessCategory(normalizeText(detail.description));
-        item.category = cat.category;
-        item.type = cat.type;
-      }
-      if (detail.date) item.date = detail.date;
-      item.rawText = `${item.rawText}\n补识别说明：${detail.description || ""}\n补识别日期：${detail.date || ""}`;
+      applyWechatLongOcrDetail(detail);
     }
-    markDirtyAndSave();
     renderAll();
+    persistDraftWithoutSync();
     const restMs = (start + batch.length) % 10 === 0 ? 10000 : 2500;
     setStatus(`已补识别微信长截图说明和日期 ${Math.min(start + batch.length, rows.length)}/${rows.length}，${restMs >= 10000 ? "休息 10 秒后继续，防止浏览器卡死。" : "继续处理中。"}`);
     await new Promise((resolve) => setTimeout(resolve, restMs));
@@ -510,11 +552,46 @@ async function recognizeWechatLongSingleRow(row) {
       result = await Tesseract.recognize(dataUrlToBlob(canvas.toDataURL("image/jpeg", 0.96)), "chi_sim+eng");
       parsed = parseWechatLongSingleRowOcr(row.id, result);
     }
+    if (!parsed.date) parsed.date = await recognizeWechatLongRowDate(image);
     return parsed;
   } catch (error) {
     console.error(error);
     return { id: row.id, description: "", date: "" };
   }
+}
+
+async function recognizeWechatLongRowDate(image) {
+  const crops = [
+    { x: 0.10, y: 0.20, width: 0.58, height: 0.60, scale: 4 },
+    { x: 0.13, y: 0.40, width: 0.42, height: 0.42, scale: 6 },
+  ];
+  for (const crop of crops) {
+    const sourceX = Math.round(image.naturalWidth * crop.x);
+    const sourceY = Math.round(image.naturalHeight * crop.y);
+    const sourceWidth = Math.round(image.naturalWidth * crop.width);
+    const sourceHeight = Math.round(image.naturalHeight * crop.height);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, sourceWidth * crop.scale);
+    canvas.height = Math.max(1, sourceHeight * crop.scale);
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    for (let index = 0; index < imageData.data.length; index += 4) {
+      const gray = imageData.data[index] * 0.299 + imageData.data[index + 1] * 0.587 + imageData.data[index + 2] * 0.114;
+      const value = gray > 224 ? 255 : 0;
+      imageData.data[index] = value;
+      imageData.data[index + 1] = value;
+      imageData.data[index + 2] = value;
+    }
+    ctx.putImageData(imageData, 0, 0);
+    const result = await Tesseract.recognize(dataUrlToBlob(canvas.toDataURL("image/png")), "chi_sim+eng");
+    const date = parseWechatRowDate(result.data?.text || "");
+    if (date) return normalizeWechatFutureDate(date);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+  }
+  return "";
 }
 
 function parseWechatLongSingleRowOcr(id, result) {
@@ -1111,7 +1188,7 @@ function parseWechatRowDate(text) {
     .replace(/[.。]/g, ":")
     .replace(/\s+/g, " ");
   const currentYear = new Date().getFullYear();
-  const match = normalized.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*(?:日)?/) || normalized.match(/(?:^|\D)(\d{1,2})\s+[月\s]?\s*(\d{1,2})(?=\D|$)/);
+  const match = normalized.match(/(\d{1,2})\s*月\D{0,4}(\d{1,2})\s*(?:[日月])?/) || normalized.match(/(?:^|\D)(\d{1,2})\s+[月\s]?\s*(\d{1,2})(?=\D|$)/);
   if (!match) return "";
   return normalizeDateParts(currentYear, Number(match[1]), Number(match[2]));
 }
@@ -1843,6 +1920,7 @@ function markDirtyAndSave() { if (restoringDraft) return; dirty = true; saveDraf
 function hasDraftableData() { return items.length || $("#projectInput").value.trim() || $("#personInput").value.trim(); }
 function draftPayload() { return { version: 2, savedAt: new Date().toISOString(), project: $("#projectInput").value, person: $("#personInput").value, manualSortActive, items: items.map(serializeItemForDraft) }; }
 function serializeItemForDraft(item) { return { id: item.id, sortOrder: item.sortOrder || 0, fileName: item.fileName, imageUrl: isDataUrl(item.imageUrl) ? item.imageUrl : "", screenshotPreviewUrl: isDataUrl(item.screenshotPreviewUrl) ? item.screenshotPreviewUrl : "", rawText: item.rawText, date: item.date, category: item.category, type: item.type, amount: item.amount, screenshotAmount: item.screenshotAmount, description: item.description, invoiceFileName: item.invoiceFileName, invoiceFileNames: invoiceEntries(item).map((entry) => entry.name).filter(Boolean), invoiceAmount: item.invoiceAmount, invoiceAmounts: invoiceEntries(item).map((entry) => entry.amount).filter(Boolean), invoiceLink: item.invoiceLink, invoice: item.invoice, source: item.source || "" }; }
+async function persistDraftWithoutSync() { if (restoringDraft) return; dirty = true; try { if (!hasDraftableData()) await removeDraftPayload(); else await saveDraftPayload(draftPayload()); } catch (error) { console.error(error); } }
 async function saveDraft(showStatus) { try { syncTableControlsToItems(); if (!hasDraftableData()) await removeDraftPayload(); else await saveDraftPayload(draftPayload()); if (showStatus) setStatus("已保存当前状态到本机浏览器 IndexedDB。刷新后会自动恢复。"); } catch (error) { console.error(error); if (showStatus) setStatus("保存失败：浏览器 IndexedDB 不可用或存储空间不足。可先导出文件备份。禁用无痕模式后通常可恢复。"); } }
 async function restoreDraft(showStatus) { let draft = null; try { draft = await loadDraftPayload(); } catch (error) { console.error(error); if (showStatus) setStatus("草稿读取失败，可能浏览器禁用了本地数据库。"); renderAll(); return; } if (!draft) { if (showStatus) setStatus("没有可恢复的草稿。"); renderAll(); return; } try { restoringDraft = true; items.forEach(revokeInvoiceUrl); $("#projectInput").value = draft.project || ""; $("#personInput").value = draft.person || ""; manualSortActive = !!draft.manualSortActive; items = (draft.items || []).map(restoreDraftItem); dirty = false; renderAll(); if (showStatus) setStatus(`已恢复本机草稿${draft.savedAt ? `（保存于 ${formatDraftTime(draft.savedAt)}）` : ""}。PDF 原文件需重新上传后才能合并导出。`); else setStatus(`已自动恢复上次草稿${draft.savedAt ? `（${formatDraftTime(draft.savedAt)}）` : ""}。PDF 原文件需重新上传后才能合并导出。`); setTimeout(tryReconnectInvoiceFolderOnRestore, 300); } catch (error) { console.error(error); if (showStatus) setStatus("草稿恢复失败，可能已损坏。可清空草稿后重新上传。"); } finally { restoringDraft = false; } }
 function restoreDraftItem(item) { const names = Array.isArray(item.invoiceFileNames) && item.invoiceFileNames.length ? item.invoiceFileNames : (item.invoiceFileName ? String(item.invoiceFileName).split("、") : []); const amounts = Array.isArray(item.invoiceAmounts) && item.invoiceAmounts.length ? item.invoiceAmounts : (item.invoiceAmount ? String(item.invoiceAmount).split("、") : []); return { id: item.id || crypto.randomUUID(), sortOrder: Number(item.sortOrder || 0), fileName: item.fileName || "已恢复截图", imageUrl: item.imageUrl || "", screenshotPreviewUrl: item.screenshotPreviewUrl || item.imageUrl || "", rawText: item.rawText || "由本机草稿恢复。", date: item.date || "", category: categories.includes(item.category) ? item.category : "其他费用", type: item.type || "其他费用", amount: item.amount || "", screenshotAmount: item.screenshotAmount || "", description: item.description || "", invoiceFile: null, invoiceFiles: names.map((name, index) => ({ file: null, name, url: "", amount: amounts[index] || "" })), invoiceFileName: names.join("、"), invoiceFileUrl: "", invoiceLink: item.invoiceLink || "", invoiceAmount: amounts.join("、"), invoice: item.invoice || "待补", source: item.source || "" }; }
