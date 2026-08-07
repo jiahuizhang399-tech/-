@@ -472,8 +472,40 @@ async function finalizeWechatLongOcrJob(job) {
     await persistDraftWithoutSync();
     await new Promise((resolve) => setTimeout(resolve, 120));
   }
+  fillWechatLongPartialDates(ids);
+  renderAll();
+  await persistDraftWithoutSync();
   const after = countWechatLongOcrFilled(ids);
   return after;
+}
+
+function fillWechatLongPartialDates(ids) {
+  const entries = (Array.isArray(ids) ? ids : [])
+    .map((id) => items.find((entry) => entry.id === id))
+    .filter(Boolean)
+    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  for (let index = 0; index < entries.length; index += 1) {
+    const item = entries[index];
+    if (item.date || !item._wechatPartialDay) continue;
+    const near = findNearestWechatLongDate(entries, index);
+    if (!near) continue;
+    const month = Number(near.slice(5, 7));
+    const day = Number(item._wechatPartialDay);
+    const nearDay = Number(near.slice(8, 10));
+    if (Math.abs(day - nearDay) > 1) continue;
+    const date = normalizeDateParts(Number(near.slice(0, 4)), month, day);
+    if (date) item.date = normalizeWechatFutureDate(date);
+  }
+}
+
+function findNearestWechatLongDate(entries, index) {
+  for (let offset = 1; offset <= 3; offset += 1) {
+    const before = entries[index - offset]?.date;
+    if (before) return before;
+    const after = entries[index + offset]?.date;
+    if (after) return after;
+  }
+  return "";
 }
 
 function countWechatLongOcrFilled(ids) {
@@ -498,6 +530,7 @@ function applyWechatLongOcrDetail(detail) {
     item.type = cat.type;
   }
   if (detail.date && !item.date) item.date = detail.date;
+  if (detail.partialDay && !item.date) item._wechatPartialDay = detail.partialDay;
   item.rawText = `${item.rawText}\n自动分段识别说明：${description || ""}\n自动分段识别日期：${detail.date || ""}`;
 }
 
@@ -552,7 +585,11 @@ async function recognizeWechatLongSingleRow(row) {
       result = await Tesseract.recognize(dataUrlToBlob(canvas.toDataURL("image/jpeg", 0.96)), "chi_sim+eng");
       parsed = parseWechatLongSingleRowOcr(row.id, result);
     }
-    if (!parsed.date) parsed.date = await recognizeWechatLongRowDate(image);
+    if (!parsed.date) {
+      const dateDetail = await recognizeWechatLongRowDateDetail(image);
+      parsed.date = dateDetail.date;
+      parsed.partialDay = dateDetail.partialDay;
+    }
     return parsed;
   } catch (error) {
     console.error(error);
@@ -561,10 +598,16 @@ async function recognizeWechatLongSingleRow(row) {
 }
 
 async function recognizeWechatLongRowDate(image) {
+  return (await recognizeWechatLongRowDateDetail(image)).date;
+}
+
+async function recognizeWechatLongRowDateDetail(image) {
   const crops = [
     { x: 0.10, y: 0.20, width: 0.58, height: 0.60, scale: 4 },
     { x: 0.13, y: 0.40, width: 0.42, height: 0.42, scale: 6 },
+    { x: 0.05, y: 0.20, width: 0.65, height: 0.70, scale: 5 },
   ];
+  let partialDay = "";
   for (const crop of crops) {
     const sourceX = Math.round(image.naturalWidth * crop.x);
     const sourceY = Math.round(image.naturalHeight * crop.y);
@@ -587,11 +630,13 @@ async function recognizeWechatLongRowDate(image) {
     }
     ctx.putImageData(imageData, 0, 0);
     const result = await Tesseract.recognize(dataUrlToBlob(canvas.toDataURL("image/png")), "chi_sim+eng");
-    const date = parseWechatRowDate(result.data?.text || "");
-    if (date) return normalizeWechatFutureDate(date);
+    const text = result.data?.text || "";
+    const date = parseWechatRowDate(text);
+    if (date) return { date: normalizeWechatFutureDate(date), partialDay };
+    partialDay = partialDay || parseWechatRowDay(text);
     await new Promise((resolve) => setTimeout(resolve, 80));
   }
-  return "";
+  return { date: "", partialDay };
 }
 
 function parseWechatLongSingleRowOcr(id, result) {
@@ -644,6 +689,12 @@ async function recognizeWechatLongScreenshotAmounts(file) {
       amounts.push(parseWechatRowAmount(line));
     }
     while (amounts.length < bounds.length) amounts.push("");
+    for (let index = 0; index < bounds.length; index += 1) {
+      if (!amounts[index] || Number(amounts[index]) >= 10) continue;
+      const candidates = await recognizeWechatLongRowAmountCandidates(image, bounds[index]);
+      amounts[index] = chooseWechatAmountCandidate(amounts[index], candidates);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
     return amounts.slice(0, bounds.length);
   } catch (error) {
     console.error(error);
@@ -651,6 +702,66 @@ async function recognizeWechatLongScreenshotAmounts(file) {
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+async function recognizeWechatLongRowAmountCandidates(image, bound) {
+  const crops = [
+    { x: 0.58, y: 0.00, width: 0.41, height: 0.80, scale: 3, threshold: 0 },
+    { x: 0.62, y: 0.10, width: 0.37, height: 0.70, scale: 4, threshold: 0 },
+    { detect: true, scale: 5, threshold: 220 },
+  ];
+  const candidates = [];
+  const rowCanvas = document.createElement("canvas");
+  rowCanvas.width = image.naturalWidth;
+  rowCanvas.height = bound.height;
+  const rowCtx = rowCanvas.getContext("2d", { willReadFrequently: true });
+  rowCtx.fillStyle = "#ffffff";
+  rowCtx.fillRect(0, 0, rowCanvas.width, rowCanvas.height);
+  rowCtx.drawImage(image, 0, bound.top, image.naturalWidth, bound.height, 0, 0, rowCanvas.width, rowCanvas.height);
+  for (const crop of crops) {
+    let sourceX;
+    let sourceY;
+    let sourceWidth;
+    let sourceHeight;
+    if (crop.detect) {
+      const detected = detectWechatAmountCrop({ naturalWidth: rowCanvas.width, naturalHeight: rowCanvas.height, _canvas: rowCanvas });
+      sourceX = detected.x;
+      sourceY = detected.y;
+      sourceWidth = detected.width;
+      sourceHeight = detected.height;
+    } else {
+      sourceX = rowCanvas.width * crop.x;
+      sourceY = rowCanvas.height * crop.y;
+      sourceWidth = rowCanvas.width * crop.width;
+      sourceHeight = rowCanvas.height * crop.height;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(sourceWidth * crop.scale));
+    canvas.height = Math.max(1, Math.round(sourceHeight * crop.scale));
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(rowCanvas, Math.round(sourceX), Math.round(sourceY), Math.round(sourceWidth), Math.round(sourceHeight), 0, 0, canvas.width, canvas.height);
+    if (crop.threshold) thresholdCanvas(ctx, canvas.width, canvas.height, crop.threshold);
+    const result = await Tesseract.recognize(dataUrlToBlob(canvas.toDataURL("image/png")), "eng", { tessedit_char_whitelist: "0123456789.,-+¥￥ " });
+    const text = result.data?.text || "";
+    const amount = parseWechatRowAmount(text);
+    if (amount) candidates.push({ amount, text, crop });
+  }
+  return candidates;
+}
+
+function chooseWechatAmountCandidate(baseAmount, candidates) {
+  const values = [baseAmount, ...(Array.isArray(candidates) ? candidates.map((entry) => entry.amount) : [])].filter(Boolean);
+  if (!values.length) return "";
+  const counts = new Map();
+  for (const value of values) counts.set(value, (counts.get(value) || 0) + 1);
+  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1] || Number(b[0]) - Number(a[0]));
+  if (baseAmount && Number(baseAmount) >= 10) return baseAmount;
+  if (sorted[0][1] > 1 && (!baseAmount || Number(sorted[0][0]) >= Number(baseAmount) * 3)) return sorted[0][0];
+  const numeric = values.map(Number).filter((value) => value > 0).sort((a, b) => b - a);
+  if (numeric.length >= 2 && numeric[0] >= numeric[1] * 3 && String(numeric[0].toFixed(2)).endsWith(String(numeric[numeric.length - 1].toFixed(2)).slice(-4))) return numeric[0].toFixed(2);
+  return baseAmount || numeric[0].toFixed(2);
 }
 
 async function recognizeWechatLongScreenshotDetails(file) {
@@ -954,7 +1065,8 @@ function detectWechatAmountCrop(image) {
   canvas.width = image.naturalWidth;
   canvas.height = image.naturalHeight;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  ctx.drawImage(image, 0, 0);
+  if (image._canvas) ctx.drawImage(image._canvas, 0, 0);
+  else ctx.drawImage(image, 0, 0);
   const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
   const scanLeft = Math.round(canvas.width * .58);
   const scanRight = Math.round(canvas.width * .99);
@@ -1191,6 +1303,20 @@ function parseWechatRowDate(text) {
   const match = normalized.match(/(\d{1,2})\s*月\D{0,4}(\d{1,2})\s*(?:[日月])?/) || normalized.match(/(?:^|\D)(\d{1,2})\s+[月\s]?\s*(\d{1,2})(?=\D|$)/);
   if (!match) return "";
   return normalizeDateParts(currentYear, Number(match[1]), Number(match[2]));
+}
+
+function parseWechatRowDay(text) {
+  const normalized = normalizeText(text)
+    .replace(/[il|]/g, "1")
+    .replace(/[oO]/g, "0")
+    .replace(/[Hh]/g, "月")
+    .replace(/[B8}]/g, "日")
+    .replace(/[.。]/g, ":")
+    .replace(/\s+/g, " ");
+  const match = normalized.match(/[\/／]?\s*月\D{0,4}(\d{1,2})\s*(?:[日月])?\s*\d{1,2}[:：]\d{1,2}/) || normalized.match(/(?:^|\D)(\d{1,2})\s*(?:日|月)\s*\d{1,2}[:：]\d{1,2}/);
+  if (!match) return "";
+  const day = Number(match[1]);
+  return day >= 1 && day <= 31 ? String(day).padStart(2, "0") : "";
 }
 
 function normalizeWechatFutureDate(date) {
