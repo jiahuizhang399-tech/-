@@ -495,7 +495,21 @@ async function recognizeWechatLongSingleRow(row) {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
-    const result = await Tesseract.recognize(dataUrlToBlob(canvas.toDataURL("image/png")), "chi_sim+eng");
+    let result = await Tesseract.recognize(dataUrlToBlob(canvas.toDataURL("image/png")), "chi_sim+eng");
+    let parsed = parseWechatLongSingleRowOcr(row.id, result);
+    if (!parsed.description && !parsed.date) {
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      result = await Tesseract.recognize(dataUrlToBlob(canvas.toDataURL("image/jpeg", 0.96)), "chi_sim+eng");
+      parsed = parseWechatLongSingleRowOcr(row.id, result);
+    }
+    return parsed;
+  } catch (error) {
+    console.error(error);
+    return { id: row.id, description: "", date: "" };
+  }
+}
+
+function parseWechatLongSingleRowOcr(id, result) {
     const lines = (Array.isArray(result.data?.lines) && result.data.lines.length ? result.data.lines.map((line) => line.text) : String(result.data?.text || "").split(/\n+/))
       .map(cleanWechatOcrLine)
       .filter(Boolean);
@@ -506,11 +520,7 @@ async function recognizeWechatLongSingleRow(row) {
       if (!description && /[\u4e00-\u9fa5a-zA-Z]{2,}/.test(text) && !/\d{1,2}\s*[月Hh日B8]\s*\d{1,2}|\d{1,2}[:：.]\d{1,2}/.test(text)) description = cleanProductName(text);
     }
     if (!description && lines.length) description = cleanProductName(lines[0]);
-    return { id: row.id, description, date };
-  } catch (error) {
-    console.error(error);
-    return { id: row.id, description: "", date: "" };
-  }
+    return { id, description, date };
 }
 
 function cleanWechatOcrLine(value) {
