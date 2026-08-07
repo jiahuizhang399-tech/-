@@ -423,8 +423,8 @@ async function resumeWechatLongOcrIfNeeded() {
       setStatus(`微信长截图说明和日期识别完成：${job.fileName}，共 ${chunks.length} 段。`);
       return;
     }
-    setStatus(`已完成第 ${job.chunkIndex}/${chunks.length} 段，正在自动刷新释放内存后继续下一段。`);
-    setTimeout(() => { suppressBeforeUnload = true; window.location.reload(); }, 1200);
+    setStatus(`已完成第 ${job.chunkIndex}/${chunks.length} 段，正在继续下一段。`);
+    setTimeout(resumeWechatLongOcrIfNeeded, 500);
   } catch (error) {
     console.error(error);
     setStatus(`说明和日期识别中断：${String(error?.message || error)}。刷新页面后会从当前进度继续。`);
