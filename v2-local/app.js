@@ -492,7 +492,8 @@ function fillWechatLongPartialDates(ids) {
     const month = Number(near.slice(5, 7));
     const day = Number(item._wechatPartialDay);
     const nearDay = Number(near.slice(8, 10));
-    if (Math.abs(day - nearDay) > 1) continue;
+    const isMonthOnlyOcr = /[\/／]?\s*月/.test(item._wechatPartialText || "");
+    if (!isMonthOnlyOcr && Math.abs(day - nearDay) > 1) continue;
     const date = normalizeDateParts(Number(near.slice(0, 4)), month, day);
     if (date) item.date = normalizeWechatFutureDate(date);
   }
@@ -530,8 +531,18 @@ function applyWechatLongOcrDetail(detail) {
     item.type = cat.type;
   }
   if (detail.date && !item.date) item.date = detail.date;
-  if (detail.partialDay && !item.date) item._wechatPartialDay = detail.partialDay;
+  if (detail.partialDay && !item.date && shouldReplaceWechatPartialDay(item._wechatPartialDay, detail.partialDay, detail.partialText)) {
+    item._wechatPartialDay = detail.partialDay;
+    item._wechatPartialText = detail.partialText || "";
+  }
   item.rawText = `${item.rawText}\n自动分段识别说明：${description || ""}\n自动分段识别日期：${detail.date || ""}`;
+}
+
+function shouldReplaceWechatPartialDay(currentDay, nextDay, nextText) {
+  if (!currentDay) return true;
+  if (currentDay === nextDay) return false;
+  if (/[\/／]?\s*月/.test(nextText || "")) return true;
+  return currentDay === "01" && nextDay !== "01";
 }
 
 async function recognizeWechatLongRowsInBatches(fileName, rows) {
@@ -589,6 +600,7 @@ async function recognizeWechatLongSingleRow(row) {
       const dateDetail = await recognizeWechatLongRowDateDetail(image);
       parsed.date = dateDetail.date;
       parsed.partialDay = dateDetail.partialDay;
+      parsed.partialText = dateDetail.partialText;
     }
     return parsed;
   } catch (error) {
@@ -608,6 +620,7 @@ async function recognizeWechatLongRowDateDetail(image) {
     { x: 0.05, y: 0.20, width: 0.65, height: 0.70, scale: 5 },
   ];
   let partialDay = "";
+  let partialText = "";
   for (const crop of crops) {
     const sourceX = Math.round(image.naturalWidth * crop.x);
     const sourceY = Math.round(image.naturalHeight * crop.y);
@@ -633,10 +646,14 @@ async function recognizeWechatLongRowDateDetail(image) {
     const text = result.data?.text || "";
     const date = parseWechatRowDate(text);
     if (date) return { date: normalizeWechatFutureDate(date), partialDay };
-    partialDay = partialDay || parseWechatRowDay(text);
+    const nextPartialDay = parseWechatRowDay(text);
+    if (nextPartialDay && shouldReplaceWechatPartialDay(partialDay, nextPartialDay, text)) {
+      partialDay = nextPartialDay;
+      partialText = text;
+    }
     await new Promise((resolve) => setTimeout(resolve, 80));
   }
-  return { date: "", partialDay };
+  return { date: "", partialDay, partialText };
 }
 
 function parseWechatLongSingleRowOcr(id, result) {
