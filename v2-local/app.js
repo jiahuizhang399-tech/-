@@ -473,10 +473,16 @@ async function finalizeWechatLongOcrJob(job) {
     await new Promise((resolve) => setTimeout(resolve, 120));
   }
   fillWechatLongPartialDates(ids);
+  sortWechatLongOcrRowsByDate();
   renderAll();
   await persistDraftWithoutSync();
   const after = countWechatLongOcrFilled(ids);
   return after;
+}
+
+function sortWechatLongOcrRowsByDate() {
+  manualSortActive = false;
+  applySortOrder([...items].sort((a, b) => dateSortValue(a.date) - dateSortValue(b.date) || sortValue(a) - sortValue(b)));
 }
 
 function fillWechatLongPartialDates(ids) {
