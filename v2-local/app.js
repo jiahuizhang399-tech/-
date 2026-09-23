@@ -4,8 +4,10 @@ const categoryRules = [
   { category: "交通费", type: "高速费", words: ["高速", "通行费", "通行费用", "通行", "etc", "收费站", "收费所", "停车区", "服务区", "隧道", "公路联网收费", "联网收费", "清分结算"] },
   { category: "交通费", type: "停车费", words: ["停车"] },
   { category: "交通费", type: "打车费", words: ["滴滴", "出租", "网约车", "出行"] },
+  { category: "交通费", type: "打车费", words: ["打车"] },
+  { category: "交通费", type: "洗车费", words: ["洗车"] },
   { category: "差旅费", type: "住宿费", words: ["酒店", "宾馆", "民宿", "客栈", "住宿", "携程", "去哪儿", "飞猪", "旅店", "公寓"] },
-  { category: "餐费", type: "餐费", words: ["餐", "饭", "咖啡", "美食", "luckin", "午餐"] },
+  { category: "餐费", type: "餐费", words: ["餐", "饭", "咖啡", "美食", "luckin", "午餐", "晚饭", "午饭", "麦当劳"] },
   { category: "物料费", type: "物料采购", words: ["采购", "道具", "设备", "耗材", "快递"] },
 ];
 
@@ -153,19 +155,21 @@ async function handleFiles(fileList) {
 async function handleWechatBillFile(file) {
   if (!file) return;
   if (!window.XLSX) return setStatus("Excel 解析组件还没有加载完成，请稍后再导入微信账单。");
-  if (!/\.xlsx$/i.test(file.name)) return setStatus("请导入微信导出的 .xlsx 账单文件。");
-  setStatus(`正在导入微信账单：${file.name}`);
+  if (!/\.xlsx$/i.test(file.name)) return setStatus("请导入微信或 iCost 导出的 .xlsx 账单文件。");
+  setStatus(`正在导入账单：${file.name}`);
   try {
     const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
     const imported = importWechatBillRows(rows, file.name);
+    sortWechatLongOcrRowsByDate();
     renderAll();
     persistDraftWithoutSync();
-    setStatus(imported.skipped ? `已导入微信账单 ${imported.count} 条支出，跳过退款/收入/无效记录 ${imported.skipped} 条。请继续补完整付款截图。` : `已导入微信账单 ${imported.count} 条支出。请继续补完整付款截图。`);
+    const kindLabel = imported.kind === "icost" ? "iCost 账单" : "微信账单";
+    setStatus(imported.skipped ? `已导入${kindLabel} ${imported.count} 条支出，跳过退款/收入/无效记录 ${imported.skipped} 条。请继续补完整付款截图。` : `已导入${kindLabel} ${imported.count} 条支出。请继续补完整付款截图。`);
   } catch (error) {
     console.error(error);
-    setStatus("微信账单导入失败，请确认文件是微信导出的 .xlsx 账单。");
+    setStatus("账单导入失败，请确认文件是微信导出的 .xlsx 账单，或 iCost 导出的账单。");
   } finally {
     if (wechatBillInput) wechatBillInput.value = "";
   }
@@ -681,6 +685,10 @@ function cleanWechatOcrLine(value) {
     .replace(/[|｜]/g, "")
     .replace(/[﹣－—–]/g, "-")
     .replace(/\s+/g, " ")
+    .replace(/付秋/g, "付款")
+    .replace(/山姆会员商[语启]/g, "山姆会员商店")
+    .replace(/团对/g, "团队")
+    .replace(/^[，。,.\s…]+|[，。,.\s…]+$/g, "")
     .trim();
 }
 
@@ -1361,8 +1369,18 @@ function parseWechatRowDescription(text) {
 }
 
 function importWechatBillRows(rows, sourceFileName) {
-  const headerIndex = rows.findIndex((row) => row.some((cell) => String(cell).trim() === "交易时间") && row.some((cell) => String(cell).trim() === "金额(元)"));
-  if (headerIndex < 0) throw new Error("未找到微信账单明细表头");
+  const wechatHeaderIndex = findBillHeaderRow(rows, ["交易时间", "金额(元)"]);
+  const icostHeaderIndex = findBillHeaderRow(rows, ["日期", "类型", "金额"]);
+  if (wechatHeaderIndex >= 0) return importOfficialWechatBillRows(rows, sourceFileName, wechatHeaderIndex);
+  if (icostHeaderIndex >= 0) return importIcostBillRows(rows, sourceFileName, icostHeaderIndex);
+  throw new Error("未找到微信账单或 iCost 账单明细表头");
+}
+
+function findBillHeaderRow(rows, requiredNames) {
+  return rows.findIndex((row) => requiredNames.every((name) => row.some((cell) => String(cell).trim() === name)));
+}
+
+function importOfficialWechatBillRows(rows, sourceFileName, headerIndex) {
   const headers = rows[headerIndex].map((cell) => String(cell).trim());
   const col = (name) => headers.indexOf(name);
   const importedItems = [];
@@ -1400,7 +1418,7 @@ function importWechatBillRows(rows, sourceFileName) {
     });
   }
   items.push(...importedItems);
-  return { count: importedItems.length, skipped };
+  return { count: importedItems.length, skipped, kind: "wechat" };
 }
 
 function cleanWechatDescription(product, counterparty) {
@@ -1412,6 +1430,50 @@ function cleanWechatDescription(product, counterparty) {
 function normalizeWechatDate(value) {
   const match = String(value || "").match(/(20\d{2})[-/](\d{1,2})[-/](\d{1,2})/);
   return match ? `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}` : "";
+}
+
+function importIcostBillRows(rows, sourceFileName, headerIndex) {
+  const headers = rows[headerIndex].map((cell) => String(cell).trim());
+  const col = (name) => headers.indexOf(name);
+  const importedItems = [];
+  let skipped = 0;
+  for (const row of rows.slice(headerIndex + 1)) {
+    const get = (name) => String(row[col(name)] || "").trim();
+    const direction = get("类型");
+    const amount = normalizeAmount(get("金额"));
+    const refund = get("退款");
+    if (!amount || direction !== "支出" || /退款|收入/i.test(`${direction} ${refund}`)) { skipped += 1; continue; }
+    const time = get("日期");
+    const remark = get("备注");
+    const primaryCategory = get("一级分类");
+    const book = get("账本");
+    const location = get("位置");
+    const description = cleanProductName(remark) || remark || cleanProductName(primaryCategory) || "iCost支出";
+    const cat = guessCategory(normalizeText(description));
+    importedItems.push({
+      id: crypto.randomUUID(),
+      sortOrder: nextSortOrder() + importedItems.length,
+      fileName: "",
+      imageUrl: "",
+      screenshotPreviewUrl: "",
+      rawText: `iCost账单导入：${sourceFileName}\n日期：${time}\n类型：${direction}\n金额：${get("金额")}\n一级分类：${primaryCategory}\n备注：${remark}\n账本：${book}\n位置：${location}`,
+      date: normalizeWechatDate(time),
+      category: cat.category,
+      type: cat.type,
+      amount: amount.toFixed(2),
+      screenshotAmount: amount.toFixed(2),
+      description,
+      invoiceFile: null,
+      invoiceFileName: "",
+      invoiceFileUrl: "",
+      invoiceLink: "",
+      invoiceAmount: "",
+      invoice: "待补",
+      source: "iCostExcel",
+    });
+  }
+  items.push(...importedItems);
+  return { count: importedItems.length, skipped, kind: "icost" };
 }
 
 async function recognizePaymentImage(images, fileName) {
@@ -1913,7 +1975,10 @@ function cleanProductName(value) {
     .replace(/([a-zA-Z])\s+(?=[a-zA-Z])/g, "$1")
     .replace(/\b\d{8,}\b/g, "")
     .replace(/[-_ ]?(?:美团|支付宝|微信|花呗|app|App)[-_ ]?\d+.*/g, "")
-    .replace(/^[：:>＞\s]+|[：:>＞\s]+$/g, "")
+    .replace(/付秋/g, "付款")
+    .replace(/山姆会员商[语启]/g, "山姆会员商店")
+    .replace(/团对/g, "团队")
+    .replace(/^[：:>＞，。,.\s…]+|[：:>＞，。,.\s…]+$/g, "")
     .trim();
   if (!/[\u4e00-\u9fa5a-zA-Z]{2,}/.test(text)) return "";
   if (/img[_-]?v\d|[0-9a-f]{8}-[0-9a-f]{4}|截图|截屏|screenshot/i.test(text)) return "";
