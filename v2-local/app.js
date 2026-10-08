@@ -28,6 +28,11 @@ let wechatLongOcrRunning = false;
 const $ = (selector) => document.querySelector(selector);
 const fileInput = $("#fileInput");
 const dropZone = $("#dropZone");
+const memoPasteBtn = $("#memoPasteBtn");
+const memoImportDialog = $("#memoImportDialog");
+const memoTextInput = $("#memoTextInput");
+const memoImportBtn = $("#memoImportBtn");
+const memoCancelBtn = $("#memoCancelBtn");
 const invoiceBatchInput = $("#invoiceBatchInput");
 const invoiceDropZone = $("#invoiceDropZone");
 const linkInvoiceFolderBtn = $("#linkInvoiceFolderBtn");
@@ -56,6 +61,10 @@ invoiceBatchInput.setAttribute("multiple", "");
 invoiceBatchInput.accept = "application/pdf,.pdf,*/*";
 fileInput.addEventListener("change", (event) => handleFiles(event.target.files));
 fileInput.addEventListener("click", () => { fileInput.value = ""; });
+if (memoPasteBtn) memoPasteBtn.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); openMemoImportDialog(); });
+if (memoCancelBtn) memoCancelBtn.addEventListener("click", closeMemoImportDialog);
+if (memoImportBtn) memoImportBtn.addEventListener("click", importMemoTextFromDialog);
+if (memoImportDialog) memoImportDialog.addEventListener("click", (event) => { if (event.target === memoImportDialog) closeMemoImportDialog(); });
 invoiceBatchInput.addEventListener("change", (event) => handleInvoiceFiles(event.target.files));
 invoiceBatchInput.addEventListener("click", () => { invoiceBatchInput.value = ""; });
 if (linkInvoiceFolderBtn) linkInvoiceFolderBtn.addEventListener("click", linkInvoiceFolder);
@@ -125,11 +134,27 @@ function injectDragSortStyles() {
 }
 
 async function handleFiles(fileList) {
-  const files = Array.from(fileList || []).filter((file) => file.type.startsWith("image/"));
+  const files = Array.from(fileList || []).filter((file) => file.type.startsWith("image/") || /\.docx$/i.test(file.name));
   if (!files.length) return;
-  for (let index = 0; index < files.length; index += 1) {
-    const file = files[index];
-    setStatus(`正在识别 ${index + 1}/${files.length}：${file.name}`);
+  const documentFiles = files.filter((file) => /\.docx$/i.test(file.name));
+  const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+  let lastDocumentStatus = "";
+  for (const file of documentFiles) {
+    setStatus(`正在读取 Word 文档：${file.name}`);
+    try {
+      const text = await readDocxExpenseText(file);
+      const result = importMemoExpenseText(text, `Word：${file.name}`);
+      lastDocumentStatus = memoImportStatus(result, `Word ${file.name}`);
+      setStatus(lastDocumentStatus);
+    } catch (error) {
+      console.error(error);
+      lastDocumentStatus = `Word 文档读取失败：${file.name}。请确认文件为 .docx 格式。`;
+      setStatus(lastDocumentStatus);
+    }
+  }
+  for (let index = 0; index < imageFiles.length; index += 1) {
+    const file = imageFiles[index];
+    setStatus(`正在识别 ${index + 1}/${imageFiles.length}：${file.name}`);
     const imageUrl = await imageFileToDraftDataUrl(file);
     let screenshotPreviewUrl = imageUrl;
     let text = "";
@@ -148,8 +173,140 @@ async function handleFiles(fileList) {
     renderAll();
     persistDraftWithoutSync();
   }
-  const missing = items.filter((item) => !item.amount).length;
-  setStatus(missing ? `已处理 ${files.length} 张截图，其中 ${missing} 条未识别到金额。` : `已处理 ${files.length} 张截图。`);
+  if (imageFiles.length) {
+    const missing = items.filter((item) => !item.amount).length;
+    setStatus(missing ? `已处理 ${imageFiles.length} 张截图，其中 ${missing} 条未识别到金额。` : `已处理 ${imageFiles.length} 张截图。`);
+  } else if (lastDocumentStatus) {
+    setStatus(lastDocumentStatus);
+  }
+}
+
+function openMemoImportDialog() {
+  if (!memoImportDialog) return;
+  memoImportDialog.hidden = false;
+  setTimeout(() => memoTextInput?.focus(), 0);
+}
+
+function closeMemoImportDialog() {
+  if (memoImportDialog) memoImportDialog.hidden = true;
+}
+
+function importMemoTextFromDialog() {
+  const text = memoTextInput?.value || "";
+  if (!text.trim()) return setStatus("请先粘贴备忘录费用文字。");
+  const result = importMemoExpenseText(text, "粘贴备忘录");
+  if (result.count) {
+    memoTextInput.value = "";
+    closeMemoImportDialog();
+  }
+  setStatus(memoImportStatus(result, "备忘录"));
+}
+
+async function readDocxExpenseText(file) {
+  if (!window.JSZip) throw new Error("Word 解析组件未加载");
+  const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  const names = Object.keys(zip.files).filter((name) => /^word\/(?:document|header\d+|footer\d+)\.xml$/i.test(name));
+  if (!names.length) throw new Error("未找到 Word 正文");
+  const sections = [];
+  for (const name of names) {
+    const xml = await zip.file(name).async("string");
+    const documentXml = new DOMParser().parseFromString(xml, "application/xml");
+    const paragraphs = [...documentXml.getElementsByTagNameNS("*", "p")].map((paragraph) =>
+      [...paragraph.getElementsByTagNameNS("*", "t")].map((node) => node.textContent || "").join("").trim()
+    ).filter(Boolean);
+    sections.push(paragraphs.join("\n"));
+  }
+  return sections.filter(Boolean).join("\n");
+}
+
+function importMemoExpenseText(text, sourceLabel = "文字导入") {
+  const parsed = parseMemoExpenseText(text);
+  for (const entry of parsed.entries) {
+    const cat = guessCategory(normalizeText(entry.description));
+    items.push({
+      id: crypto.randomUUID(),
+      sortOrder: nextSortOrder(),
+      fileName: "",
+      imageUrl: "",
+      screenshotPreviewUrl: "",
+      rawText: `${sourceLabel}\n原始行：${entry.rawLine}`,
+      date: entry.date,
+      category: cat.category,
+      type: cat.type,
+      amount: entry.amount.toFixed(2),
+      screenshotAmount: entry.amount.toFixed(2),
+      description: entry.description,
+      invoiceFile: null,
+      invoiceFileName: "",
+      invoiceFileUrl: "",
+      invoiceLink: "",
+      invoiceAmount: "",
+      invoice: "待补",
+      source: sourceLabel,
+    });
+  }
+  if (parsed.entries.length) {
+    sortWechatLongOcrRowsByDate();
+    renderAll();
+    persistDraftWithoutSync();
+  }
+  return { count: parsed.entries.length, skipped: parsed.skipped, total: parsed.total, declaredTotal: parsed.declaredTotal };
+}
+
+function parseMemoExpenseText(text) {
+  const entries = [];
+  let skipped = 0;
+  let declaredTotal = 0;
+  const lines = String(text || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  for (const line of lines) {
+    if (/^(?:共计|合计|总计)\s*[:：]?/i.test(line)) {
+      declaredTotal = memoLineAmount(line) || declaredTotal;
+      continue;
+    }
+    const date = memoLineDate(line);
+    const amount = memoLineAmount(line);
+    if (!date || !amount) { skipped += 1; continue; }
+    const description = memoLineDescription(line) || "备忘录费用";
+    entries.push({ date, amount, description, rawLine: line });
+  }
+  return { entries, skipped, declaredTotal, total: entries.reduce((sum, entry) => sum + entry.amount, 0) };
+}
+
+function memoLineDate(line) {
+  const full = String(line || "").match(/(20\d{2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?/);
+  if (full) return normalizeDateParts(Number(full[1]), Number(full[2]), Number(full[3]));
+  const short = String(line || "").match(/(\d{1,2})\s*月\s*(\d{1,2})(?:\s*[-至到~～]\s*\d{1,2})?\s*(?:日|号)?/);
+  if (!short) return "";
+  return normalizeDateParts(new Date().getFullYear(), Number(short[1]), Number(short[2]));
+}
+
+function memoLineAmount(line) {
+  const text = String(line || "").replace(/,/g, "");
+  const total = text.match(/(?:共计|合计|总计)\s*[:：]?\s*(\d+(?:\.\d{1,2})?)\s*元?/i);
+  if (total) return normalizeAmount(total[1]);
+  const yuan = text.match(/(\d+(?:\.\d{1,2})?)\s*元/);
+  if (yuan) return normalizeAmount(yuan[1]);
+  const ending = text.match(/(\d+(?:\.\d{1,2})?)\s*$/);
+  return ending ? normalizeAmount(ending[1]) : 0;
+}
+
+function memoLineDescription(line) {
+  return cleanProductName(String(line || "")
+    .replace(/^\s*(?:20\d{2}\s*年\s*)?\d{1,2}\s*月\s*\d{1,2}(?:\s*[-至到~～]\s*\d{1,2})?\s*(?:日|号)?\s*(?:两天|一天)?\s*/i, "")
+    .replace(/\d+(?:\.\d+)?(?:\s*[+＋]\s*\d+(?:\.\d+)?)+/g, "")
+    .replace(/(?:共计|合计|总计)\s*[:：]?\s*\d+(?:\.\d{1,2})?\s*元?/gi, "")
+    .replace(/\d+(?:\.\d{1,2})?\s*元.*$/i, "")
+    .replace(/\s+/g, " "));
+}
+
+function memoImportStatus(result, label) {
+  if (!result.count) return `${label}未识别到包含日期和金额的费用行。`;
+  const actual = Number(result.total || 0);
+  const declared = Number(result.declaredTotal || 0);
+  const base = `已从${label}导入 ${result.count} 条，明细合计 ${actual.toFixed(2)} 元`;
+  if (declared && Math.abs(actual - declared) >= .005) return `${base}；原文声明共计 ${declared.toFixed(2)} 元，相差 ${(actual - declared).toFixed(2)} 元，请检查。`;
+  if (declared) return `${base}，与原文共计一致。`;
+  return `${base}。`;
 }
 
 async function handleWechatBillFile(file) {
