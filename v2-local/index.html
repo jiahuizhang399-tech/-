@@ -38,13 +38,14 @@
   <style>@media (min-width:521px) and (max-width:900px){body #itemsTable tbody tr[data-row-id]>td:nth-child(8) .screenshot-cell .thumb-button>img.thumb,body #itemsTable tbody tr[data-row-id]>td:nth-child(8) .screenshot-cell img.thumb,body #itemsTable tbody tr[data-row-id]>td:nth-child(8) .thumb-button>img.thumb{object-fit:contain!important;object-position:center center!important;background:#fff!important}}</style>
   <style>@media (max-width:900px){body #itemsTable tbody tr[data-row-id]>td:nth-child(1),body #itemsTable tbody tr[data-row-id]>td:nth-child(2),body #itemsTable tbody tr[data-row-id]>td:nth-child(3),body #itemsTable tbody tr[data-row-id]>td:nth-child(4),body #itemsTable tbody tr[data-row-id]>td:nth-child(5){display:grid!important;grid-template-columns:32px minmax(0,1fr)!important;align-items:center!important;gap:4px!important;padding-left:0!important;padding-right:0!important}body #itemsTable tbody tr[data-row-id]>td:nth-child(1)::before,body #itemsTable tbody tr[data-row-id]>td:nth-child(2)::before,body #itemsTable tbody tr[data-row-id]>td:nth-child(3)::before,body #itemsTable tbody tr[data-row-id]>td:nth-child(4)::before,body #itemsTable tbody tr[data-row-id]>td:nth-child(5)::before{width:32px!important;min-width:32px!important;max-width:32px!important;padding:0!important;margin:0!important;text-align:left!important;justify-self:start!important}body #itemsTable tbody tr[data-row-id]>td:nth-child(1)>*,body #itemsTable tbody tr[data-row-id]>td:nth-child(2)>*,body #itemsTable tbody tr[data-row-id]>td:nth-child(3)>*,body #itemsTable tbody tr[data-row-id]>td:nth-child(4)>*,body #itemsTable tbody tr[data-row-id]>td:nth-child(5)>*{width:100%!important;min-width:0!important;max-width:100%!important;margin:0!important}}</style>
   <style>.detail-search{display:flex;align-items:center;gap:8px;min-width:260px;max-width:420px;flex:1}.detail-search input{width:100%;height:38px;border:2px solid rgba(15,91,99,.22);border-radius:999px;padding:0 14px;background:#fffdf7;color:#17383d;font:inherit}.detail-search input:focus{outline:none;border-color:#e08d12;box-shadow:0 0 0 3px rgba(224,141,18,.16)}#itemsTable tbody tr.search-hit{background:#fff4c6!important;box-shadow:inset 0 0 0 3px #e08d12}#itemsTable tbody tr.search-hit>td{background:#fff4c6!important}@media(max-width:900px){.detail-search{order:3;flex-basis:100%;max-width:none}.detail-search input{height:40px}}</style>
+  <style>.source-drop-zone input[type=file]{z-index:1}.source-drop-zone .drop-copy{position:relative;z-index:2;pointer-events:none}.source-drop-zone .memo-paste-btn{pointer-events:auto;margin-top:10px;padding:7px 12px;border:1px solid #99b8b9;border-radius:10px;background:#fff;color:#294e50;font-weight:700;cursor:pointer}.memo-import-dialog[hidden]{display:none}.memo-import-dialog{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:18px;background:rgba(24,31,31,.5)}.memo-import-card{width:min(720px,100%);max-height:90vh;overflow:auto;padding:20px;border-radius:20px;background:#fffaf1;box-shadow:0 20px 70px rgba(0,0,0,.28)}.memo-import-card h2{margin:0 0 8px}.memo-import-card p{margin:0 0 12px;color:#5b686c}.memo-import-card textarea{box-sizing:border-box;width:100%;min-height:330px;padding:14px;border:1px solid #cfc8b8;border-radius:12px;background:#fff;font:15px/1.55 system-ui;resize:vertical}.memo-import-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:12px}.memo-import-actions button{padding:9px 16px;border:0;border-radius:10px;cursor:pointer;font-weight:700}.memo-import-actions .primary{background:#176b4a;color:#fff}@media(max-width:900px){.memo-import-card textarea{min-height:55vh}}</style>
   <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script defer src="app.js?v=local-v2-rapidocr-50"></script>
+  <script defer src="app.js?v=local-v2-rapidocr-51"></script>
 </head>
 <body>
   <main class="shell">
@@ -60,14 +61,23 @@
 
       <div class="top-work">
         <section class="panel upload-panel">
-          <div class="drop-zone" id="dropZone"><input id="fileInput" type="file" accept="image/*" multiple><div class="drop-copy"><strong>上传付款截图</strong><span>识别付款金额；有退款时自动计算净额。</span></div></div>
+          <div class="drop-zone source-drop-zone" id="dropZone"><input id="fileInput" type="file" accept="image/*,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple><div class="drop-copy"><strong>上传付款截图 / Word</strong><span>支持图片 OCR、Word 费用文字，以及粘贴备忘录。</span><button type="button" class="memo-paste-btn" id="memoPasteBtn">粘贴备忘录文字</button></div></div>
           <div class="drop-zone invoice-drop-zone" id="invoiceDropZone"><input id="invoiceBatchInput" type="file" accept="application/pdf,.pdf,*/*" multiple><div class="drop-copy"><strong>上传发票 PDF</strong><span>可多选 PDF；安卓不支持多选时可重复追加。</span></div></div>
           <div class="drop-zone wechat-drop-zone" id="wechatBillDropZone"><input id="wechatBillInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><div class="drop-copy"><strong>导入微信 / iCost 账单 Excel</strong><span>自动识别格式，只导入支出，排除退款。</span></div></div>
           <div class="drop-zone wechat-shot-drop-zone" id="wechatShotDropZone"><input id="wechatShotInput" type="file" accept="image/*" multiple><div class="drop-copy"><strong>导入微信账单截图</strong><span>自动裁成单行账单截图。</span></div></div>
           <div class="project-fields"><label>关联项目编号<input id="projectInput" placeholder="如 CSP1991"></label><label>报销人<input id="personInput" placeholder="如 张家辉"></label></div>
         </section>
 
-        <section class="status" id="statusBar">等待上传截图。</section>
+        <section class="status" id="statusBar">等待上传截图、Word 或备忘录文字。</section>
+      </div>
+
+      <div class="memo-import-dialog" id="memoImportDialog" hidden>
+        <section class="memo-import-card" role="dialog" aria-modal="true" aria-labelledby="memoImportTitle">
+          <h2 id="memoImportTitle">粘贴备忘录费用文字</h2>
+          <p>每笔费用单独一行。系统会识别日期、金额、说明和费用类别；“共计/合计”行仅用于校验。</p>
+          <textarea id="memoTextInput" placeholder="例如：&#10;8月25日早餐10个人200元&#10;8月25日产品车充电31.6元&#10;共计231.6元"></textarea>
+          <div class="memo-import-actions"><button type="button" id="memoCancelBtn">取消</button><button type="button" class="primary" id="memoImportBtn">识别并导入</button></div>
+        </section>
       </div>
 
         <section class="panel summary-panel">
