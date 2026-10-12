@@ -2152,11 +2152,12 @@ function enhanceCanvas(canvas) { const ctx = canvas.getContext("2d"); const imag
 function canvasToBlob(canvas, fallback) { return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob || fallback), "image/png")); }
 
 async function getInvoiceAmounts(file) {
-  const fileNameAmount = findInvoiceFileNameAmount(normalizeText(file.name));
-  if (fileNameAmount) return [fileNameAmount.toFixed(2)];
-
-  const textAmounts = guessInvoiceAmounts(`${await readPdfText(file)}\n${file.name}`);
+  let pdfText = "";
+  try { pdfText = await readPdfText(file); } catch (error) { console.error(error); }
+  const textAmounts = guessInvoiceAmounts(`${pdfText}\n${file.name}`);
   if (textAmounts.length) return textAmounts;
+  const fileNameAmount = findInvoiceFileNameAmount(file.name);
+  if (fileNameAmount) return [fileNameAmount.toFixed(2)];
 
   const regionAmount = await readInvoiceTotalRegion(file);
   return regionAmount ? [regionAmount.toFixed(2)] : [];
@@ -2177,12 +2178,15 @@ async function readInvoiceTotalRegion(file) {
   const crops = [
     cropCanvas(canvas, canvas.width * .67, canvas.height * .69, canvas.width * .20, canvas.height * .10),
     cropCanvas(canvas, canvas.width * .60, canvas.height * .68, canvas.width * .30, canvas.height * .12),
+    cropCanvas(canvas, canvas.width * .35, canvas.height * .50, canvas.width * .60, canvas.height * .18),
+    cropCanvas(canvas, canvas.width * .12, canvas.height * .28, canvas.width * .76, canvas.height * .42),
   ];
   for (const crop of crops) {
     enhanceCanvas(crop);
     const blob = await canvasToBlob(crop, new Blob());
-    const result = await Tesseract.recognize(blob, "chi_sim+eng", { tessedit_char_whitelist: "0123456789.,¥￥小写 " });
-    const amount = findInvoiceRegionAmount(result.data.text || "");
+    const result = await Tesseract.recognize(blob, "chi_sim+eng");
+    const text = result.data.text || "";
+    const amount = findInvoiceRegionAmount(text) || findInvoiceTotalAmount(normalizeInvoiceAmountText(text));
     if (amount) return amount;
   }
   return 0;
@@ -2203,17 +2207,9 @@ function findInvoiceRegionAmount(text) {
   return 0;
 }
 
-function validInvoiceAmount(amount) { return amount > 0 && amount <= 10000; }
+function validInvoiceAmount(amount) { return amount > 0 && amount <= 100000; }
 function guessInvoiceAmounts(text) {
-  const t = normalizeText(text)
-    .replace(/([\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])/g, "$1")
-    .replace(/(\d)\s+(?=\d)/g, "$1")
-    .replace(/([¥￥])\s+(?=\d)/g, "$1")
-    .replace(/(\d)\s*([.,])\s*(?=\d)/g, "$1.")
-    .replace(/价\s*税\s*合\s*计/g, "价税合计")
-    .replace(/发\s*票\s*金\s*额/g, "发票金额")
-    .replace(/小\s*写/g, "小写")
-    .replace(/(\d)\s*([.,])\s*(\d{2})(?!\d)/g, "$1.$3");
+  const t = normalizeInvoiceAmountText(text);
   const invoiceTotal = findInvoiceTotalAmount(t);
   if (invoiceTotal) return [invoiceTotal.toFixed(2)];
 
@@ -2225,7 +2221,7 @@ function guessInvoiceAmounts(text) {
 
 function findInvoiceTotalAmount(text) {
   const windows = [];
-  for (const keyword of ["价税合计", "税价合计", "合计小写", "小写", "发票金额"]) {
+  for (const keyword of ["价税合计", "税价合计", "消费合计", "付款合计", "合计小写", "小写", "发票金额"]) {
     let index = text.indexOf(keyword);
     while (index >= 0) {
       windows.push(text.slice(Math.max(0, index - 120), index + 520));
@@ -2250,7 +2246,8 @@ function findInvoiceTotalAmount(text) {
   const patterns = [
     /[零〇壹贰叁肆伍陆柒捌玖拾佰仟万亿圆元角分整]+\s*[¥￥]?\s*(\d{1,5}\.\d{2})/,
     /(\d{1,5}\.\d{2})\s*[¥￥]?\s*[零〇壹贰叁肆伍陆柒捌玖拾佰仟万亿圆元角分整]+/,
-    /(?:价税合计|税价合计|合计小写|小写)[\s\S]{0,120}[¥￥]?\s*(\d{1,5}\.\d{2})/,
+    /(?:消费合计|付款合计|价税合计|税价合计|合计小写|小写)[^\d¥￥]{0,24}[¥￥]?\s*(\d{1,6}(?:\.\d{1,2})?)/,
+    /(?:价税合计|税价合计|合计小写|小写)[\s\S]{0,120}[¥￥]?\s*(\d{1,6}(?:\.\d{1,2})?)/,
     /[¥￥]\s*(\d{1,5}\.\d{2})/,
     /(?:合计|总计|金额)[^\d¥￥]{0,30}[¥￥]?\s*(\d{1,5}\.\d{2})/,
   ];
@@ -2267,13 +2264,34 @@ function findInvoiceTotalAmount(text) {
 }
 
 function findInvoiceFileNameAmount(text) {
-  const patterns = [/发票金额\s*(\d{1,5}\.\d{2})\s*(?:元|圆)?/, /_(\d{1,5}\.\d{2})\s*(?:元|圆)?_/];
+  const name = String(text || "").split(/[\\/]/).pop();
+  const patterns = [
+    /发票金额\s*(\d{1,6}(?:\.\d{1,2})?)\s*(?:元|圆)?/,
+    /_(\d{1,6}(?:\.\d{1,2})?)\s*(?:元|圆)?_/,
+    /\+(\d{1,6}(?:\.\d{1,2})?)\s*元/,
+    /^(\d{1,6}(?:\.\d{1,2})?)\s*(?:[（(]\s*\d+\s*[）)])?\.pdf$/i,
+    /^(\d{1,6}(?:\.\d{1,2})?)[\u4e00-\u9fa5]/,
+  ];
   for (const pattern of patterns) {
-    const match = text.match(pattern);
+    const match = name.match(pattern);
     const amount = normalizeAmount(match && match[1]);
     if (validInvoiceAmount(amount)) return amount;
   }
   return 0;
+}
+function normalizeInvoiceAmountText(text) {
+  return normalizeText(text)
+    .replace(/([\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])/g, "$1")
+    .replace(/(\d)\s+(?=\d)/g, "$1")
+    .replace(/(\d),(?=\d{3}(?:\D|$))/g, "$1")
+    .replace(/([¥￥])\s+(?=\d)/g, "$1")
+    .replace(/(\d)\s*([.,])\s*(?=\d)/g, "$1.")
+    .replace(/价\s*税\s*合\s*计/g, "价税合计")
+    .replace(/消\s*费\s*合\s*计/g, "消费合计")
+    .replace(/付\s*款\s*合\s*计/g, "付款合计")
+    .replace(/发\s*票\s*金\s*额/g, "发票金额")
+    .replace(/小\s*写/g, "小写")
+    .replace(/(\d)\s*([.,])\s*(\d{2})(?!\d)/g, "$1.$3");
 }
 function matchInvoiceToItem(file, amounts) { const reuploadTarget = findInvoiceReuploadTarget(file); if (reuploadTarget) { replaceInvoiceEntry(reuploadTarget, file, amounts[0] || ""); return "reupload"; } const target = findInvoiceTarget(amounts); if (!target) return "failed"; addInvoiceToItem(target, file, amounts.find((amount) => sameAmount(target.amount, amount)) || amounts[0] || ""); return "matched"; }
 function findInvoiceTarget(amounts) { const amountList = Array.isArray(amounts) ? amounts : [amounts]; return items.find((item) => !invoiceEntries(item).length && amountList.some((amount) => sameAmount(item.amount, amount))); }
